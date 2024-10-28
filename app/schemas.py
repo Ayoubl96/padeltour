@@ -8,4 +8,8 @@ class CompanyBase(BaseModel):
     password: str
     phone_number: str
 
-
+class CompanyOut(BaseModel):
+    id: int
+    email: str
+    phone_number: str
+    created_at: datetime

@@ -1,7 +1,9 @@
+import fastapi
 from fastapi import FastAPI, status, HTTPException, Depends, APIRouter
 from sqlalchemy.orm import Session
 from . import models, schemas
 from . db import get_db
+from typing import List
 from sqlalchemy.sql import or_
 from sqlalchemy import func
 app = FastAPI()
@@ -28,3 +30,9 @@ def create_company(
     db.commit()
     db.refresh(new_company)
     return new_company
+
+
+@app.get("/companies/", response_model=List[schemas.CompanyOut])
+def get_companies(db: Session = Depends(get_db)):
+    companies = db.query(models.Company).all()
+    return companies
