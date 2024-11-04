@@ -12,7 +12,7 @@ import uuid
 
 router = APIRouter(
     prefix="/court",
-    tags=['Companies']
+    tags=['Courts']
 )
 
 @router.post("/upload_image/", status_code=status.HTTP_201_CREATED)
