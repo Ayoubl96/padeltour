@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     secret_key: str
     algorithm: str
     access_token_exp_minutes: int
+    supabase_url: str
+    supabase_key: str
+    supabase_bucket: str
 
     class Config:
         env_file = ".env"

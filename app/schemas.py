@@ -1,6 +1,7 @@
-from pydantic import BaseModel, EmailStr, conint
+from pydantic import BaseModel, EmailStr, HttpUrl
 from typing import Optional
 from datetime import datetime
+from typing import List
 
 
 class CompanyBase(BaseModel):
@@ -10,15 +11,29 @@ class CompanyBase(BaseModel):
     name: str
     address: str
 
+    class Config:
+        orm_mode = True
+
 
 class CompanyOut(BaseModel):
     id: int
     login: str
     name: str
     address: str
-    email: str
+    email: EmailStr
     phone_number: str
     created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+
+class CourtBase(BaseModel):
+    name: str
+    images: List[HttpUrl]
+
+    class Config:
+        orm_mode = True
 
 
 class Token(BaseModel):
