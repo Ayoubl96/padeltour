@@ -15,6 +15,7 @@ router = APIRouter(
     tags=['Courts']
 )
 
+
 @router.post("/upload_image/", status_code=status.HTTP_201_CREATED)
 async def upload_image(
         files: List[UploadFile] = File(...),
@@ -27,7 +28,7 @@ async def upload_image(
     image_urls = []
 
     for file in files:
-        # Genera un nome unico per l'immagine
+        # Genera un nome unico per imagine
         file_extension = file.filename.split(".")[-1]
         file_name = f"{uuid.uuid4()}.{file_extension}"
         file_path = f"{folder_name}{file_name}"
@@ -64,3 +65,12 @@ def create_court(
     db.commit()
     db.refresh(new_court)
     return new_court
+
+
+@router.get("/", status_code=status.HTTP_200_OK, response_model=List[schemas.CourtBase])
+def get_court(
+        db: Session = Depends(get_db),
+        current_company: int = Depends(oauth2.get_current_user)
+):
+    courts = db.query(models.Court).filter(models.Company.id == current_company.id)
+    return courts
