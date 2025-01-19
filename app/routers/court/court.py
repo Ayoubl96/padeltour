@@ -4,9 +4,9 @@ from ... import models, schemas, tools, oauth2
 from ...db import get_db
 from sqlalchemy.sql import or_
 from sqlalchemy import func
-from app.function.compnay import get_single_company
-from app.function.court import *
-from app.function.supabase import *
+from ...function.compnay import get_single_company
+from ...function.court import *
+from ...function.supabase import *
 
 router = APIRouter(
     prefix="/court",
@@ -31,7 +31,7 @@ def create_court(
         current_company: int = Depends(oauth2.get_current_user)
 ):
     images_as_str = [str(url) for url in court.images]
-    new_court = court.create_new_court(
+    new_court = create_new_court(
         name=court.name,
         images=images_as_str,
         company_id=current_company.id
