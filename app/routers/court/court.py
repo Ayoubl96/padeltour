@@ -31,7 +31,7 @@ def create_court(
         current_company: int = Depends(oauth2.get_current_user)
 ):
     images_as_str = [str(url) for url in court.images]
-    new_court = create_new_court(
+    new_court = court.create_new_court(
         name=court.name,
         images=images_as_str,
         company_id=current_company.id

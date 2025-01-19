@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     supabase_url: str
     supabase_key: str
     supabase_bucket: str
+    playtomic_api_url: str
+    playtomic_email: str
+    playtomic_password: str
 
     class Config:
         env_file = ".env"

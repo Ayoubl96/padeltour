@@ -35,7 +35,55 @@ class CourtBase(BaseModel):
     class Config:
         orm_mode = True
 
+class TournamentBase(BaseModel):
+    name: str
+    description: str
+    images: List[HttpUrl]
+    type: int
+    start_date: datetime
+    end_date: datetime
+    player_type: int
+    participants: int
+    is_couple: int
 
+    class Config:
+        orm_mode = True
+
+class TournamentOut(BaseModel):
+    id: int
+    name: str
+    description: str
+    images: List[HttpUrl]
+    company_id: int
+    type: int
+    start_date: datetime
+    end_date: datetime
+    player_type: int
+    participants: int
+    is_couple: int
+
+    class Config:
+        orm_mode = True
+
+class PlayersBase(BaseModel):
+    nickname: str
+    gender: int
+
+    class Config:
+        orm_mode = True
+
+class PlayerOut(BaseModel):
+    id: int
+    nickname: str
+    gender: int
+
+    class Config:
+        orm_mode = True
+class PlayerPlaytomic(BaseModel):
+    user_id: int
+
+    class Config:
+        orm_mode = True
 class Token(BaseModel):
     access_token: str
     token_type: str

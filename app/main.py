@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from .routers.companies import companies
 from .routers import auth
 from .routers.court import court
+from .routers.tournaments import tournament
+from .routers.player import player
 
 app = FastAPI()
 
@@ -19,6 +21,8 @@ app.add_middleware(
 app.include_router(companies.router)
 app.include_router(auth.router)
 app.include_router(court.router)
+app.include_router(tournament.router)
+app.include_router(player.router)
 
 
 @app.get("/")

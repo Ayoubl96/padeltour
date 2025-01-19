@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 from ... import schemas, tools, oauth2
 from ...db import get_db
-from app.function.compnay import new_company, get_all_companies, get_single_company
+from ...function.compnay import new_company, get_all_companies, get_single_company
 from sqlalchemy.sql import or_
 from sqlalchemy import func
 

@@ -28,7 +28,8 @@ services:
       - POSTGRES_PASSWORD=pass
       - POSTGRES_DB=padeltour
     volumes:
-      - postgres-db:/var/lib/postgresql/data
+      - padeltour_postgres-db:/var/lib/postgresql/data  # Use your existing named volume
 
 volumes:
-  postgres-db:
+  padeltour_postgres-db:
+    external: true  # Indicate that this volume already exists
