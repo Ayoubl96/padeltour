@@ -174,3 +174,35 @@ def create_tournament_couple(
     db.refresh(new_couple)
 
     return new_couple
+
+@router.get("/{id}/couple", response_model=list[schemas.TournamentCoupleOut])
+def get_tournament_couples(
+    id: int,  # Tournament ID from the path
+    db: Session = Depends(get_db),
+    current_company: int = Depends(oauth2.get_current_user)
+):
+    # 1. Check if the tournament exists and is owned by the current company
+    tournament = db.query(models.Tournament).filter(id == models.Tournament.id).first()
+    if not tournament:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tournament not found"
+        )
+    if tournament.company_id != current_company.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to view couples for this tournament"
+        )
+
+    # 2. Fetch all couples in the tournament
+    couples = (
+        db.query(models.TournamentCouple)
+        .options(
+            joinedload(models.TournamentCouple.first_player),
+            joinedload(models.TournamentCouple.second_player)
+        )
+        .filter(id == models.TournamentCouple.tournament_id)
+        .all()
+    )
+
+    return couples
