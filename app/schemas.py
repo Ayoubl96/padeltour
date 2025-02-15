@@ -93,6 +93,67 @@ class PlayerPlaytomic(BaseModel):
 
     class Config:
         orm_mode = True
+
+class TournamentPlayerBase(BaseModel):
+    tournament_id: int
+    player_id: int
+
+class TournamentPlayerCreate(TournamentPlayerBase):
+    pass
+
+class TournamentPlayerOut(TournamentPlayerBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: Optional[datetime] = None
+    player: PlayerOutFull
+
+    class Config:
+        from_attributes = True
+
+
+class TournamentCoupleCreate(BaseModel):
+    first_player_id: int
+    second_player_id: int
+    name: str
+
+class TournamentCoupleOut(BaseModel):
+    id: int
+    tournament_id: int
+    first_player_id: int
+    second_player_id: int
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: Optional[datetime]
+    name: str
+    # Include related data
+    first_player: Optional[PlayerOutFull] = None
+    second_player: Optional[PlayerOutFull] = None
+
+    class Config:
+        orm_mode = True
+
+class TournamentCoupleOutSimple(BaseModel):
+    id: int
+    tournament_id: int
+    first_player_id: int
+    second_player_id: int
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: Optional[datetime]
+    name: str
+
+    class Config:
+        orm_mode = True
+
+class TournamentCoupleUpdate(BaseModel):
+    tournament_id: Optional[int] = None
+    first_player_id: Optional[int] = None
+    second_player_id: Optional[int] = None
+    name: Optional[str] = None
+
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str

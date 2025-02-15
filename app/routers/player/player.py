@@ -169,4 +169,3 @@ def get_player_by_id(
 async def get_tournament_id(url: str = None ):
     id = extract_tournament_id_from_url(url)
     return {"id": id}
-
