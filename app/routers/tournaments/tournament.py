@@ -202,6 +202,7 @@ def get_tournament_couples(
             joinedload(models.TournamentCouple.second_player)
         )
         .filter(id == models.TournamentCouple.tournament_id)
+        .filter(models.TournamentCouple.deleted_at.is_(None))
         .all()
     )
 
