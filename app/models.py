@@ -17,9 +17,9 @@ class Company(Base):
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'))
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'), onupdate=text('NOW()'))
     phone_number = Column(String, nullable=True)
-    entities = relationship("Court", back_populates="company")
-    tournament = relationship("Tournament", back_populates="company")
-
+    courts = relationship("Court", back_populates="company")
+    tournaments = relationship("Tournament", back_populates="company")
+    player_companies = relationship("PlayerCompany", back_populates="company")
 
 class Court(Base):
     __tablename__ = "courts"
@@ -29,7 +29,7 @@ class Court(Base):
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'))
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'), onupdate=text('NOW()'))
-    company = relationship("Company", back_populates="entities")
+    company = relationship("Company", back_populates="courts")
 
 
 class Tournament(Base):
@@ -39,15 +39,12 @@ class Tournament(Base):
     description = Column(String, nullable=True)
     images = Column(JSON, nullable=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
-    type = Column(Integer, nullable=False)
     start_date = Column(TIMESTAMP(timezone=True), nullable=False)
     end_date = Column(TIMESTAMP(timezone=True), nullable=False)
-    player_type = Column(Integer, nullable=False)
-    participants = Column(Integer, nullable=False)
-    is_couple = Column(Integer, nullable=False)
+    players_number = Column(Integer, nullable=False)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'))
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'), onupdate=text('NOW()'))
-    company = relationship("Company", back_populates="tournament")
+    company = relationship("Company", back_populates="tournaments")
 
 
 class Player(Base):
@@ -59,8 +56,17 @@ class Player(Base):
     number = Column(Integer, nullable=True)
     email = Column(String, nullable=True)
     picture = Column(JSON, nullable=True)
-    playtomic_id = Column(Integer, nullable=True)
+    playtomic_id = Column(Integer, nullable=True, unique=True)
     level = Column(Integer, nullable=True)
     gender = Column(Integer, nullable=False)
 
+    player_companies = relationship("PlayerCompany", back_populates="player")
 
+class PlayerCompany(Base):
+    __tablename__ = "player_company"
+    id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    player_id = Column(Integer, ForeignKey("players.id"), nullable=False)
+
+    company = relationship("Company", back_populates="player_companies")
+    player = relationship("Player", back_populates="player_companies")

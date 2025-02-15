@@ -2,7 +2,6 @@ from .. import models
 import requests
 from . import api
 
-
 def create_new_player(
         nickname: str,
         gender: int
@@ -18,14 +17,15 @@ def create_new_player_from_playtomic(
         nickname: str,
         picture: str,
         level: str,
-        playtomic_id: int
+        playtomic_id: int,
+        gender: int
 ):
     new_player_from_playtomic = models.Player(
         nickname=nickname,
         picture=picture,
         level=level,
         playtomic_id=playtomic_id,
-        gender=1
+        gender=gender
     )
     return new_player_from_playtomic
 
@@ -86,3 +86,13 @@ def get_user_level_from_playtomic(
         return data
     except requests.HTTPError as e:
         print(f"HTTP Error: {e}")
+
+def create_relation_with_company_and_player(
+        company_id: int,
+        player_id: int
+):
+    player_company = models.PlayerCompany(
+        player_id = player_id,
+        company_id = company_id
+    )
+    return player_company

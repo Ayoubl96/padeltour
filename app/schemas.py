@@ -1,7 +1,6 @@
 from pydantic import BaseModel, EmailStr, HttpUrl
-from typing import Optional
 from datetime import datetime
-from typing import List
+from typing import Union, List, Optional
 
 
 class CompanyBase(BaseModel):
@@ -39,12 +38,9 @@ class TournamentBase(BaseModel):
     name: str
     description: str
     images: List[HttpUrl]
-    type: int
     start_date: datetime
     end_date: datetime
-    player_type: int
-    participants: int
-    is_couple: int
+    players_number: int
 
     class Config:
         orm_mode = True
@@ -55,12 +51,9 @@ class TournamentOut(BaseModel):
     description: str
     images: List[HttpUrl]
     company_id: int
-    type: int
     start_date: datetime
     end_date: datetime
-    player_type: int
-    participants: int
-    is_couple: int
+    players_number: int
 
     class Config:
         orm_mode = True
@@ -79,8 +72,24 @@ class PlayerOut(BaseModel):
 
     class Config:
         orm_mode = True
+
+class PlayerOutFull(PlayerOut):
+    name: Optional[str] = None
+    surname: Optional[str] = None
+    number: Optional[int] = None
+    email: Optional[str] = None
+    playtomic_id: Optional[int] = None
+    level: Optional[int] = None
+    picture: Optional[Union[List[HttpUrl], HttpUrl]] = None
+
+
+class PlayerCompany(BaseModel):
+    company_id: int
+    player_id: int
+
 class PlayerPlaytomic(BaseModel):
     user_id: int
+    gender: int
 
     class Config:
         orm_mode = True

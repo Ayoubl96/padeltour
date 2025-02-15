@@ -18,12 +18,9 @@ def create_tournament(
         description=tournament.description,
         images=images_as_str,
         company_id=current_company.id,
-        type=tournament.type,
         start_date=tournament.start_date,
         end_date=tournament.end_date,
-        player_type=tournament.player_type,
-        participants=tournament.participants,
-        is_couple=tournament.is_couple
+        players_number=tournament.players_number
     )
     db.add(new_tournament)
     db.commit()
