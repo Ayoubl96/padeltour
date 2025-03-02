@@ -21,7 +21,8 @@ def create_tournament(
         company_id=current_company.id,
         start_date=tournament.start_date,
         end_date=tournament.end_date,
-        players_number=tournament.players_number
+        players_number=tournament.players_number,
+        full_description=tournament.full_description
     )
     db.add(new_tournament)
     db.commit()
@@ -207,3 +208,13 @@ def get_tournament_couples(
     )
 
     return couples
+
+@router.get("/", response_model=list[schemas.TournamentOut])
+def get_all_tournaments(
+        db: Session = Depends(get_db),
+        current_company: int = Depends(oauth2.get_current_user)
+):
+    tournaments = db.query(models.Tournament).filter(
+        models.Tournament.company_id == current_company.id
+    ).all()
+    return tournaments

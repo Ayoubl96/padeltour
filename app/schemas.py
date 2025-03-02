@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, HttpUrl
 from datetime import datetime
-from typing import Union, List, Optional
+from typing import Union, List, Optional, Any
 
 
 class CompanyBase(BaseModel):
@@ -36,24 +36,20 @@ class CourtBase(BaseModel):
 
 class TournamentBase(BaseModel):
     name: str
-    description: str
-    images: List[HttpUrl]
+    description: Optional[str] = None
+    images: Optional[List[str]] = None
     start_date: datetime
     end_date: datetime
     players_number: int
+    full_description: Optional[Any] = None
 
     class Config:
         orm_mode = True
 
-class TournamentOut(BaseModel):
+class TournamentOut(TournamentBase):
     id: int
-    name: str
-    description: str
-    images: List[HttpUrl]
-    company_id: int
-    start_date: datetime
-    end_date: datetime
-    players_number: int
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         orm_mode = True
