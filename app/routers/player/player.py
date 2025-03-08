@@ -1,6 +1,6 @@
 from fastapi import Depends, APIRouter, status, HTTPException
 from sqlalchemy.orm import Session
-
+from fastapi.responses import JSONResponse
 from ... import models
 from ... import schemas, oauth2
 from ...db import get_db
@@ -39,8 +39,6 @@ def create_player(
     return new_player
 
 
-
-from fastapi.responses import JSONResponse
 
 @router.post("/from-playtomic/", status_code=status.HTTP_201_CREATED, response_model=schemas.PlayerOut)
 def create_player_from_playtomic(
