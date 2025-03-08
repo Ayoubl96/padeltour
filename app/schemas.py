@@ -54,6 +54,18 @@ class TournamentOut(TournamentBase):
     class Config:
         orm_mode = True
 
+class TournamentUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    images: Optional[List[str]] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    players_number: Optional[int] = None
+    full_description: Optional[Any] = None
+
+    class Config:
+        orm_mode = True
+
 class PlayersBase(BaseModel):
     nickname: str
     gender: int
