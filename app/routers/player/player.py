@@ -69,7 +69,7 @@ def create_player_from_playtomic(
         if existing_relation:
             # Player and relation already exist, return 200 OK with player_id
             return JSONResponse(
-                status_code=status.HTTP_200_OK,
+                status_code=status.HTTP_409_CONFLICT,
                 content={"message": "Player and relation already exist.", "player_id": existing_player.id}
             )
 
@@ -163,7 +163,3 @@ def get_player_by_id(
 
     return player
 
-@router.get("/tournament-id/")
-async def get_tournament_id(url: str = None ):
-    id = extract_tournament_id_from_url(url)
-    return {"id": id}

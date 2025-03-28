@@ -51,6 +51,7 @@ class Tournament(Base):
     full_description = Column(JSONB, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'))
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'), onupdate=text('NOW()'))
+    deleted_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
     # Relationships
     company = relationship("Company", back_populates="tournaments")
@@ -58,6 +59,7 @@ class Tournament(Base):
     couples = relationship("TournamentCouple", back_populates="tournament")
     matches = relationship("Match", back_populates="tournament")
     all_couple_stats = relationship("CoupleStats", back_populates="tournament")
+    stages = relationship("TournamentStage", back_populates="tournament")
 
 
 class Player(Base):
@@ -129,24 +131,102 @@ class TournamentCouple(Base):
     first_player = relationship("Player", foreign_keys=[first_player_id], back_populates="couples_as_first")
     second_player = relationship("Player", foreign_keys=[second_player_id], back_populates="couples_as_second")
     stats = relationship("CoupleStats", back_populates="couple")
+    group_assignments = relationship("GroupCouple", back_populates="couple")
+    stage_stats = relationship("StageCoupleStats", back_populates="couple")
+
+
+class TournamentStage(Base):
+    __tablename__ = "tournament_stages"
+    id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
+    tournament_id = Column(Integer, ForeignKey("tournaments.id"), nullable=False)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    stage_type = Column(String, nullable=False)  # 'group', 'elimination', 'round_robin', etc.
+    order = Column(Integer, nullable=False)  # Sequence within tournament
+    rules = Column(JSONB, nullable=False)  # Flexible configuration
+    status = Column(String, nullable=False, default="planned")  # planned, in_progress, completed
+    start_date = Column(TIMESTAMP(timezone=True), nullable=True)
+    end_date = Column(TIMESTAMP(timezone=True), nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'))
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'), onupdate=text('NOW()'))
+    deleted_at = Column(TIMESTAMP(timezone=True), nullable=True)
+
+    # Relationships
+    tournament = relationship("Tournament", back_populates="stages")
+    groups = relationship("StageGroup", back_populates="stage")
+    matches = relationship("Match", back_populates="stage")
+    couple_stats = relationship("StageCoupleStats", back_populates="stage")
+
+    # Ensure each tournament has stages with unique order
+    __table_args__ = (
+        UniqueConstraint('tournament_id', 'order', name='unique_stage_order'),
+    )
+
+
+class StageGroup(Base):
+    __tablename__ = "stage_groups"
+    id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
+    stage_id = Column(Integer, ForeignKey("tournament_stages.id"), nullable=False)
+    name = Column(String, nullable=False)  # "Group A", "Group B", etc.
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'))
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'), onupdate=text('NOW()'))
+    deleted_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    
+    # Relationships
+    stage = relationship("TournamentStage", back_populates="groups")
+    group_couples = relationship("GroupCouple", back_populates="group")
+    matches = relationship("Match", back_populates="group")
+
+    # Ensure unique group names within a stage
+    __table_args__ = (
+        UniqueConstraint('stage_id', 'name', name='unique_group_name'),
+    )
+
+
+class GroupCouple(Base):
+    __tablename__ = "group_couples"
+    id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
+    group_id = Column(Integer, ForeignKey("stage_groups.id"), nullable=False)
+    couple_id = Column(Integer, ForeignKey("tournament_couple.id"), nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'))
+    deleted_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    
+    # Relationships
+    group = relationship("StageGroup", back_populates="group_couples")
+    couple = relationship("TournamentCouple", back_populates="group_assignments")
+
+    # Ensure a couple belongs to only one group per stage
+    __table_args__ = (
+        UniqueConstraint('group_id', 'couple_id', name='unique_couple_group'),
+    )
 
 
 class Match(Base):
     __tablename__ = "matches"
     id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
     tournament_id = Column(Integer, ForeignKey("tournaments.id"), nullable=False)
+    stage_id = Column(Integer, ForeignKey("tournament_stages.id"), nullable=True)  # Nullable for existing data
+    group_id = Column(Integer, ForeignKey("stage_groups.id"), nullable=True)  # Only for group matches
     couple1_id = Column(Integer, ForeignKey("tournament_couple.id"), nullable=False)
     couple2_id = Column(Integer, ForeignKey("tournament_couple.id"), nullable=False)
     winner_couple_id = Column(Integer, ForeignKey("tournament_couple.id"), nullable=True)
+    court_id = Column(Integer, ForeignKey("courts.id"), nullable=True)  # Court where match will be played
     games = Column(JSONB, nullable=False)
+    bracket_position = Column(String, nullable=True)  # For elimination stages (e.g. "quarterfinal_1")
+    match_date = Column(TIMESTAMP(timezone=True), nullable=True)  # When the match is scheduled
+    match_duration = Column(Integer, nullable=True)  # Duration in minutes
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'))
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'), onupdate=text('NOW()'))
+    deleted_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
     # Relationships
     tournament = relationship("Tournament", back_populates="matches")
+    stage = relationship("TournamentStage", back_populates="matches")
+    group = relationship("StageGroup", back_populates="matches")
     couple1 = relationship("TournamentCouple", foreign_keys=[couple1_id])
     couple2 = relationship("TournamentCouple", foreign_keys=[couple2_id])
     winner = relationship("TournamentCouple", foreign_keys=[winner_couple_id])
+    court = relationship("Court")
 
 
 class CoupleStats(Base):
@@ -162,6 +242,7 @@ class CoupleStats(Base):
     games_lost = Column(Integer, default=0)
     total_points = Column(Integer, default=0)
     last_updated = Column(TIMESTAMP(timezone=True), server_default=text('NOW()'), onupdate=text('NOW()'))
+    deleted_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
     # Unique constraint
     __table_args__ = (
@@ -171,3 +252,31 @@ class CoupleStats(Base):
     # Relationships
     tournament = relationship("Tournament", back_populates="all_couple_stats")
     couple = relationship("TournamentCouple", back_populates="stats")
+
+
+class StageCoupleStats(Base):
+    __tablename__ = "stage_couple_stats"
+    id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
+    stage_id = Column(Integer, ForeignKey("tournament_stages.id"), nullable=False)
+    couple_id = Column(Integer, ForeignKey("tournament_couple.id"), nullable=False)
+    group_id = Column(Integer, ForeignKey("stage_groups.id"), nullable=True)  # For group stage stats
+    matches_played = Column(Integer, default=0)
+    matches_won = Column(Integer, default=0)
+    matches_lost = Column(Integer, default=0)
+    matches_drawn = Column(Integer, default=0)
+    games_won = Column(Integer, default=0)
+    games_lost = Column(Integer, default=0)
+    total_points = Column(Integer, default=0)
+    position = Column(Integer, nullable=True)  # Final position in group or stage
+    last_updated = Column(TIMESTAMP(timezone=True), server_default=text('NOW()'), onupdate=text('NOW()'))
+    deleted_at = Column(TIMESTAMP(timezone=True), nullable=True)
+
+    # Unique constraint - one stats record per couple per stage
+    __table_args__ = (
+        UniqueConstraint('stage_id', 'couple_id', name='unique_stage_couple_stats'),
+    )
+
+    # Relationships
+    stage = relationship("TournamentStage", back_populates="couple_stats")
+    couple = relationship("TournamentCouple", back_populates="stage_stats")
+    group = relationship("StageGroup")

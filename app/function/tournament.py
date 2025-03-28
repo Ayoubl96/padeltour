@@ -4,11 +4,11 @@ from typing import Optional
 
 def create_new_tournament(name: str,
                           description: str,
-                          images: list,
                           company_id: int,
                           start_date: datetime,
                           end_date: datetime,
                           players_number: int,
+                          images: Optional[list] = None,
                           full_description: Optional[dict] = None
                           ):
     new_tournament = models.Tournament(

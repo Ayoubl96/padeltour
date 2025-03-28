@@ -1,12 +1,28 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers.companies import companies
+import uvicorn
 from .routers import auth
 from .routers.court import court
-from .routers.tournaments import tournament
+from .routers.companies import companies
 from .routers.player import player
+from .routers.tournaments import match
+from .routers.tournaments import stage
+from .routers.tournaments import group
+from .routers.tournaments import stats
+from .routers.tournaments import stage_actions
+from .routers.tournaments import templates
+from .routers.tournaments import tournament
+from . import models
+from .db import engine
 
-app = FastAPI()
+# Create all tables
+models.Base.metadata.create_all(bind=engine)
+
+app = FastAPI(
+    title="PadelTour API",
+    description="API for PadelTour tournament management system",
+    version="1.0.0"
+)
 
 origins = ["*"]
 
@@ -18,15 +34,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(companies.router)
+# Add all routers
 app.include_router(auth.router)
+app.include_router(companies.router)
+app.include_router(player.router)
 app.include_router(court.router)
 app.include_router(tournament.router)
-app.include_router(player.router)
-
+app.include_router(stage.router)
+app.include_router(group.router)
+app.include_router(stats.router)
+app.include_router(match.router)
+app.include_router(stage_actions.router)
+app.include_router(templates.router)
 
 @app.get("/")
-async def root():
-    return {"message": "Hello World"}
+def root():
+    return {"message": "Welcome to PadelTour API"}
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8000)
 
 

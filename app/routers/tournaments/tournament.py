@@ -14,8 +14,11 @@ router = APIRouter(
 def create_tournament(
         tournament: schemas.TournamentBase, db:Session = Depends(get_db),
         current_company: int = Depends(oauth2.get_current_user)
-):
-    images_as_str = [str(url) for url in tournament.images]
+):  
+    if tournament.images:
+        images_as_str = [str(url) for url in tournament.images]
+    else:
+        images_as_str = None
     new_tournament = create_new_tournament(
         name=tournament.name,
         description=tournament.description,
@@ -39,7 +42,10 @@ def get_tournament_by_id(
     current_company: int = Depends(oauth2.get_current_user)
 ):
     # Check if the tournament exists and is owned by the current company
-    tournament = db.query(models.Tournament).filter(models.Tournament.id == id).first()
+    tournament = db.query(models.Tournament).filter(
+        models.Tournament.id == id,
+        models.Tournament.deleted_at.is_(None)
+    ).first()
     
     if not tournament:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tournament not found")
@@ -58,7 +64,10 @@ def update_tournament(
     current_company: int = Depends(oauth2.get_current_user)
 ):
     # Check if the tournament exists and is owned by the current company
-    tournament_query = db.query(models.Tournament).filter(models.Tournament.id == id)
+    tournament_query = db.query(models.Tournament).filter(
+        models.Tournament.id == id,
+        models.Tournament.deleted_at.is_(None)
+    )
     tournament = tournament_query.first()
     
     if not tournament:
@@ -157,7 +166,10 @@ def get_tournament_players(
         current_company: int = Depends(oauth2.get_current_user)
 ):
     # Fetch tournament with ownership check
-    tournament = db.query(models.Tournament).filter(id == models.Tournament.id).first()
+    tournament = db.query(models.Tournament).filter(
+        id == models.Tournament.id,
+        models.Tournament.deleted_at.is_(None)
+    ).first()
 
     if not tournament:
         raise HTTPException(status_code=404, detail="Tournament not found")
@@ -205,9 +217,25 @@ def delete_player_from_tournament(
         (models.TournamentCouple.second_player_id == player_id)
     ).all()
     
-    # Delete the couples that include this player
-    for couple in couples_to_delete:
-        db.delete(couple)
+    # Get the IDs of the couples to delete
+    couple_ids = [couple.id for couple in couples_to_delete]
+    
+    if couple_ids:
+        # First delete any matches that reference these couples
+        db.query(models.Match).filter(
+            (models.Match.couple1_id.in_(couple_ids)) | 
+            (models.Match.couple2_id.in_(couple_ids)) |
+            (models.Match.winner_couple_id.in_(couple_ids))
+        ).delete(synchronize_session=False)
+        
+        # Delete any GroupCouple entries that reference these couples
+        db.query(models.GroupCouple).filter(
+            models.GroupCouple.couple_id.in_(couple_ids)
+        ).delete(synchronize_session=False)
+        
+        # Now delete the couples
+        for couple in couples_to_delete:
+            db.delete(couple)
     
     # Soft delete the player from the tournament
     tournament_player.deleted_at = datetime.now()
@@ -260,6 +288,7 @@ def create_tournament_couple(
     # 4. Check if the couple already exists (regardless of player order)
     existing_couple = db.query(models.TournamentCouple).filter(
         id == models.TournamentCouple.tournament_id,
+        models.TournamentCouple.deleted_at.is_(None),
         (
                 (couple.first_player_id == models.TournamentCouple.first_player_id) &
                 (models.TournamentCouple.second_player_id == couple.second_player_id)
@@ -274,8 +303,36 @@ def create_tournament_couple(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This couple already exists in the tournament (including reverse order)"
         )
+        
+    # 5. Check if either player is already part of another couple in this tournament
+    player_in_couple = db.query(models.TournamentCouple).filter(
+        id == models.TournamentCouple.tournament_id,
+        models.TournamentCouple.deleted_at.is_(None),
+        (
+            (models.TournamentCouple.first_player_id == couple.first_player_id) |
+            (models.TournamentCouple.second_player_id == couple.first_player_id) |
+            (models.TournamentCouple.first_player_id == couple.second_player_id) |
+            (models.TournamentCouple.second_player_id == couple.second_player_id)
+        )
+    ).first()
+    
+    if player_in_couple:
+        # Determine which player is already in a couple
+        if player_in_couple.first_player_id == couple.first_player_id or player_in_couple.second_player_id == couple.first_player_id:
+            player_id = couple.first_player_id
+        else:
+            player_id = couple.second_player_id
+            
+        # Get the player's name/nickname for the error message
+        player = db.query(models.Player).filter(models.Player.id == player_id).first()
+        player_name = player.nickname if player else f"Player ID {player_id}"
+        
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{player_name} is already part of another couple in this tournament"
+        )
 
-    # 5. Create the new couple
+    # 6. Create the new couple
     new_couple = models.TournamentCouple(
         tournament_id=id,
         first_player_id=couple.first_player_id,
@@ -295,7 +352,10 @@ def get_tournament_couples(
     current_company: int = Depends(oauth2.get_current_user)
 ):
     # 1. Check if the tournament exists and is owned by the current company
-    tournament = db.query(models.Tournament).filter(id == models.Tournament.id).first()
+    tournament = db.query(models.Tournament).filter(
+        id == models.Tournament.id,
+        models.Tournament.deleted_at.is_(None)
+    ).first()
     if not tournament:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -390,6 +450,42 @@ def update_tournament_couple(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="This couple already exists in the tournament (including reverse order)"
             )
+            
+        # Check if either new player is already part of another couple in this tournament
+        # Only check the players that are being changed
+        players_to_check = []
+        if couple_update.first_player_id and couple_update.first_player_id != couple.first_player_id:
+            players_to_check.append(couple_update.first_player_id)
+        if couple_update.second_player_id and couple_update.second_player_id != couple.second_player_id:
+            players_to_check.append(couple_update.second_player_id)
+            
+        if players_to_check:
+            player_in_couple = db.query(models.TournamentCouple).filter(
+                tournament_id == models.TournamentCouple.tournament_id,
+                models.TournamentCouple.id != couple_id,  # Exclude the current couple
+                models.TournamentCouple.deleted_at.is_(None),
+                (
+                    (models.TournamentCouple.first_player_id.in_(players_to_check)) |
+                    (models.TournamentCouple.second_player_id.in_(players_to_check))
+                )
+            ).first()
+            
+            if player_in_couple:
+                # Determine which player is already in a couple
+                player_id = None
+                if players_to_check[0] in [player_in_couple.first_player_id, player_in_couple.second_player_id]:
+                    player_id = players_to_check[0]
+                elif len(players_to_check) > 1 and players_to_check[1] in [player_in_couple.first_player_id, player_in_couple.second_player_id]:
+                    player_id = players_to_check[1]
+                    
+                # Get the player's name/nickname for the error message
+                player = db.query(models.Player).filter(models.Player.id == player_id).first()
+                player_name = player.nickname if player else f"Player ID {player_id}"
+                
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{player_name} is already part of another couple in this tournament"
+                )
     
     # Update couple attributes that were provided
     if couple_update.first_player_id is not None:
@@ -442,6 +538,125 @@ def get_all_tournaments(
         current_company: int = Depends(oauth2.get_current_user)
 ):
     tournaments = db.query(models.Tournament).filter(
-        models.Tournament.company_id == current_company.id
+        models.Tournament.company_id == current_company.id,
+        models.Tournament.deleted_at.is_(None)
     ).all()
     return tournaments
+
+@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_tournament(
+    id: int,
+    db: Session = Depends(get_db),
+    current_company: int = Depends(oauth2.get_current_user)
+):
+    # Check if the tournament exists and is owned by the current company
+    tournament = db.query(models.Tournament).filter(models.Tournament.id == id).first()
+    
+    if not tournament:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tournament not found")
+    
+    if tournament.company_id != current_company.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized access to this tournament")
+    
+    current_time = datetime.now()
+    
+    # Get all couples in the tournament
+    tournament_couples = db.query(models.TournamentCouple).filter(
+        models.TournamentCouple.tournament_id == id,
+        models.TournamentCouple.deleted_at.is_(None)
+    ).all()
+    
+    couple_ids = [couple.id for couple in tournament_couples]
+    
+    if couple_ids:
+        # Soft delete StageCoupleStats entries
+        db.query(models.StageCoupleStats).filter(
+            models.StageCoupleStats.couple_id.in_(couple_ids),
+            models.StageCoupleStats.deleted_at.is_(None)
+        ).update({"deleted_at": current_time}, synchronize_session=False)
+        
+        # Soft delete CoupleStats entries
+        db.query(models.CoupleStats).filter(
+            models.CoupleStats.couple_id.in_(couple_ids),
+            models.CoupleStats.deleted_at.is_(None)
+        ).update({"deleted_at": current_time}, synchronize_session=False)
+        
+        # Soft delete all matches that reference these couples
+        db.query(models.Match).filter(
+            (models.Match.couple1_id.in_(couple_ids)) | 
+            (models.Match.couple2_id.in_(couple_ids)) |
+            (models.Match.winner_couple_id.in_(couple_ids)),
+            models.Match.deleted_at.is_(None)
+        ).update({"deleted_at": current_time}, synchronize_session=False)
+        
+        # Soft delete GroupCouple entries
+        db.query(models.GroupCouple).filter(
+            models.GroupCouple.couple_id.in_(couple_ids),
+            models.GroupCouple.deleted_at.is_(None)
+        ).update({"deleted_at": current_time}, synchronize_session=False)
+        
+        # Soft delete all couples
+        db.query(models.TournamentCouple).filter(
+            models.TournamentCouple.tournament_id == id,
+            models.TournamentCouple.deleted_at.is_(None)
+        ).update({"deleted_at": current_time}, synchronize_session=False)
+    
+    # Soft delete all tournament stages and related data
+    tournament_stages = db.query(models.TournamentStage).filter(
+        models.TournamentStage.tournament_id == id,
+        models.TournamentStage.deleted_at.is_(None)
+    ).all()
+    
+    stage_ids = [stage.id for stage in tournament_stages]
+    
+    if stage_ids:
+        # Get all groups
+        groups = db.query(models.StageGroup).filter(
+            models.StageGroup.stage_id.in_(stage_ids),
+            models.StageGroup.deleted_at.is_(None)
+        ).all()
+        
+        group_ids = [group.id for group in groups]
+        
+        if group_ids:
+            # Soft delete matches in groups
+            db.query(models.Match).filter(
+                models.Match.group_id.in_(group_ids),
+                models.Match.deleted_at.is_(None)
+            ).update({"deleted_at": current_time}, synchronize_session=False)
+            
+            # Soft delete all groups
+            db.query(models.StageGroup).filter(
+                models.StageGroup.id.in_(group_ids),
+                models.StageGroup.deleted_at.is_(None)
+            ).update({"deleted_at": current_time}, synchronize_session=False)
+        
+        # Soft delete any matches in stages
+        db.query(models.Match).filter(
+            models.Match.stage_id.in_(stage_ids),
+            models.Match.deleted_at.is_(None)
+        ).update({"deleted_at": current_time}, synchronize_session=False)
+        
+        # Soft delete all stages
+        db.query(models.TournamentStage).filter(
+            models.TournamentStage.id.in_(stage_ids),
+            models.TournamentStage.deleted_at.is_(None)
+        ).update({"deleted_at": current_time}, synchronize_session=False)
+    
+    # Soft delete all matches directly on tournament
+    db.query(models.Match).filter(
+        models.Match.tournament_id == id,
+        models.Match.deleted_at.is_(None)
+    ).update({"deleted_at": current_time}, synchronize_session=False)
+    
+    # Soft delete all tournament players
+    db.query(models.TournamentPlayer).filter(
+        models.TournamentPlayer.tournament_id == id,
+        models.TournamentPlayer.deleted_at.is_(None)
+    ).update({"deleted_at": current_time}, synchronize_session=False)
+    
+    # Soft delete the tournament itself
+    tournament.deleted_at = current_time
+    db.commit()
+    
+    return None
