@@ -1,4 +1,4 @@
-version: "3"
+# version: "3"
 services:
   api:
     build: .
@@ -10,13 +10,18 @@ services:
     #     - ./.env
     environment:
       - DB_HOST=${DB_HOST}
-      - DATABASE_PORT=${DATABASE_PORT}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - SECRET_KEY=${SECRET_KEY}
       - ALGORITHM=${ALGORITHM}
       - ACCESS_TOKEN_EXP_MINUTES=${ACCESS_TOKEN_EXP_MINUTES}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - SUPABASE_BUCKET=${SUPABASE_BUCKET}
+      - PLAYTOMIC_API_URL=${PLAYTOMIC_API_URL}
+      - PLAYTOMIC_EMAIL=${PLAYTOMIC_EMAIL}
+      - PLAYTOMIC_PASSWORD=${PLAYTOMIC_PASSWORD}
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       - postgres
@@ -32,4 +37,4 @@ services:
 
 volumes:
   padeltour_postgres-db:
-    external: true  # Indicate that this volume already exists
+    # external: true  # Indicate that this volume already exists

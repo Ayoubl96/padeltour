@@ -248,7 +248,8 @@ def create_tournament_couple(
     # 3. Check if both players are in the tournament_player table for this tournament
     players_in_tournament = db.query(models.TournamentPlayer).filter(
         id == models.TournamentPlayer.tournament_id,
-        models.TournamentPlayer.player_id.in_([couple.first_player_id, couple.second_player_id])
+        models.TournamentPlayer.player_id.in_([couple.first_player_id, couple.second_player_id]),
+        models.TournamentPlayer.deleted_at.is_(None)
     ).all()
 
     if len(players_in_tournament) != 2:
@@ -260,6 +261,7 @@ def create_tournament_couple(
     # 4. Check if the couple already exists (regardless of player order)
     existing_couple = db.query(models.TournamentCouple).filter(
         id == models.TournamentCouple.tournament_id,
+        models.TournamentCouple.deleted_at.is_(None),
         (
                 (couple.first_player_id == models.TournamentCouple.first_player_id) &
                 (models.TournamentCouple.second_player_id == couple.second_player_id)
