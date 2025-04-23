@@ -45,7 +45,17 @@ def create_player_from_playtomic(
         raise ValueError("playtomic_player does not contain a single element")
 
     playtomic_player['additional_data'] = additional_data
-    level = playtomic_player['additional_data'][0]['level_value'] * 100
+    
+    # Add proper error handling for level calculation
+    level = 0  # Default level if data is missing
+    try:
+        if (playtomic_player.get('additional_data') and 
+            len(playtomic_player['additional_data']) > 0 and 
+            'level_value' in playtomic_player['additional_data'][0]):
+            level = playtomic_player['additional_data'][0]['level_value'] * 100
+    except (IndexError, KeyError, TypeError):
+        # If any error occurs during extraction, use the default level (0)
+        pass
 
     # Check if player already exists in the DB
     existing_player = db.query(Player).filter_by(playtomic_id=playtomic_player['user_id']).first()
@@ -101,9 +111,13 @@ def get_playtomic_players(
     
     # Add additional data to each player
     for p in players:
-        player_id = p['user_id']
-        additional_data = PlaytomicService.get_user_level_from_playtomic(player_id)
-        p['additional_data'] = additional_data
+        try:
+            player_id = p['user_id']
+            additional_data = PlaytomicService.get_user_level_from_playtomic(player_id)
+            p['additional_data'] = additional_data
+        except Exception as e:
+            # If there's any error getting additional data, provide an empty list
+            p['additional_data'] = []
     
     return players
 
