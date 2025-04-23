@@ -7,7 +7,6 @@ from app import schemas
 from app.core.security import get_current_user
 from app.db.database import get_db
 from app.models.company import Company
-from app.models.player import Player, PlayerCompany
 from app.services.player_service import PlayerService
 from app.services.playtomic_service import PlaytomicService
 from app.utils.string_utils import extract_tournament_id_from_url
@@ -35,71 +34,34 @@ def create_player_from_playtomic(
     db: Session = Depends(get_db),
     current_company: Company = Depends(get_current_user)
 ):
-    # Get user data from playtomic
-    playtomic_player = PlaytomicService.get_user_by_id_from_playtomic(player.user_id)
-    additional_data = PlaytomicService.get_user_level_from_playtomic(player.user_id)
-
-    if len(playtomic_player) == 1:
-        playtomic_player = playtomic_player[0]
-    else:
-        raise ValueError("playtomic_player does not contain a single element")
-
-    playtomic_player['additional_data'] = additional_data
+    player_service = PlayerService(db)
     
-    # Add proper error handling for level calculation
-    level = 0  # Default level if data is missing
     try:
-        if (playtomic_player.get('additional_data') and 
-            len(playtomic_player['additional_data']) > 0 and 
-            'level_value' in playtomic_player['additional_data'][0]):
-            level = playtomic_player['additional_data'][0]['level_value'] * 100
-    except (IndexError, KeyError, TypeError):
-        # If any error occurs during extraction, use the default level (0)
-        pass
-
-    # Check if player already exists in the DB
-    existing_player = db.query(Player).filter_by(playtomic_id=playtomic_player['user_id']).first()
-
-    if existing_player:
-        # Check if relation with the company already exists
-        existing_relation = db.query(PlayerCompany).filter_by(
-            player_id=existing_player.id,
+        # Get player data from Playtomic
+        playtomic_data = player_service.get_playtomic_player_data(player.user_id)
+        
+        # Create or update player
+        result = player_service.create_player_from_playtomic(
+            playtomic_data=playtomic_data,
+            gender=player.gender,
             company_id=current_company.id
-        ).first()
-
-        if existing_relation:
-            # Player and relation already exist, return 200 OK with player_id
+        )
+        
+        # Handle different result statuses
+        if result["status"] == "existing":
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
-                content={"message": "Player and relation already exist.", "player_id": existing_player.id}
+                content={"message": "Player and relation already exist.", "player_id": result["player"].id}
             )
-
-        # If player exists but relation does not, create the relation
-        player_company = PlayerCompany(
-            player_id=existing_player.id,
-            company_id=current_company.id
-        )
-        db.add(player_company)
-        db.commit()
-
-        # Return 200 OK with message and player_id
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content={"message": "Relation with company created.", "player_id": existing_player.id}
-        )
-
-    # Create new player using the player service
-    player_service = PlayerService(db)
-    new_player = player_service.create_player(
-        nickname=playtomic_player['full_name'],
-        gender=player.gender,
-        company_id=current_company.id,
-        picture=playtomic_player['picture'],
-        level=level,
-        playtomic_id=playtomic_player['user_id']
-    )
-
-    return new_player
+        elif result["status"] == "related":
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content={"message": "Relation with company created.", "player_id": result["player"].id}
+            )
+        else:
+            return result["player"]
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/playtomic-player/")
@@ -115,7 +77,7 @@ def get_playtomic_players(
             player_id = p['user_id']
             additional_data = PlaytomicService.get_user_level_from_playtomic(player_id)
             p['additional_data'] = additional_data
-        except Exception as e:
+        except Exception:
             # If there's any error getting additional data, provide an empty list
             p['additional_data'] = []
     
