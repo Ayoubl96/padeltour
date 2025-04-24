@@ -325,3 +325,65 @@ def delete_tournament_couple(
     db.commit()
     
     return None 
+
+
+# Tournament court endpoints
+@router.post("/{id}/court", response_model=schemas.TournamentCourtOut, status_code=status.HTTP_201_CREATED)
+def add_court_to_tournament(
+    id: int,
+    court_data: schemas.TournamentCourtCreate,
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    tournament_service = TournamentService(db)
+    return tournament_service.add_court_to_tournament(
+        tournament_id=id,
+        court_id=court_data.court_id,
+        company_id=current_company.id,
+        availability_start=court_data.availability_start,
+        availability_end=court_data.availability_end
+    )
+
+
+@router.get("/{id}/court", response_model=List[schemas.TournamentCourtOut])
+def get_tournament_courts(
+    id: int,
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    tournament_service = TournamentService(db)
+    return tournament_service.get_tournament_courts(id, current_company.id)
+
+
+@router.put("/{tournament_id}/court/{court_id}", response_model=schemas.TournamentCourtOut)
+def update_tournament_court(
+    tournament_id: int,
+    court_id: int,
+    court_update: schemas.TournamentCourtUpdate,
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    tournament_service = TournamentService(db)
+    update_data = court_update.dict(exclude_unset=True)
+    return tournament_service.update_tournament_court(
+        tournament_id=tournament_id,
+        court_id=court_id,
+        company_id=current_company.id,
+        update_data=update_data
+    )
+
+
+@router.delete("/{tournament_id}/court/{court_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_court_from_tournament(
+    tournament_id: int,
+    court_id: int,
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    tournament_service = TournamentService(db)
+    tournament_service.remove_court_from_tournament(
+        tournament_id=tournament_id,
+        court_id=court_id,
+        company_id=current_company.id
+    )
+    return None 

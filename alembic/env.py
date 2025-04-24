@@ -6,11 +6,16 @@ from sqlalchemy import pool
 from alembic import context
 
 from app.models import Base
-from app.config import settings
+from app.core.config import settings
+import os
+import sys
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-config.set_main_option("sqlalchemy.url", f'postgresql://{settings.db_user}:{settings.db_password}@{settings.db_host}/{settings.db_name}')
+# Override the host with the correct one
+db_host = "postgres.padeltour.orb.local"
+config.set_main_option("sqlalchemy.url", f'postgresql://{settings.db_user}:{settings.db_password}@{db_host}/{settings.db_name}')
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -60,19 +65,24 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
-
-    with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
+    try:
+        connectable = engine_from_config(
+            config.get_section(config.config_ini_section, {}),
+            prefix="sqlalchemy.",
+            poolclass=pool.NullPool,
         )
 
-        with context.begin_transaction():
-            context.run_migrations()
+        with connectable.connect() as connection:
+            context.configure(
+                connection=connection, target_metadata=target_metadata
+            )
+
+            with context.begin_transaction():
+                context.run_migrations()
+    except Exception as e:
+        print(f"Error connecting to database: {e}")
+        print("Database connection failed. To generate SQL, use: alembic upgrade head --sql > migration.sql")
+        sys.exit(1)
 
 
 if context.is_offline_mode():
