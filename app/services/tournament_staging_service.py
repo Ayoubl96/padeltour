@@ -63,6 +63,19 @@ class TournamentStagingService:
                 detail=f"A stage with order {order} already exists for this tournament"
             )
         
+        # Check if there's a soft-deleted stage with the same order
+        soft_deleted_stage = self.db.query(TournamentStage).filter(
+            TournamentStage.tournament_id == tournament_id,
+            TournamentStage.order == order,
+            TournamentStage.deleted_at.isnot(None)
+        ).first()
+        
+        if soft_deleted_stage:
+            # Instead of updating the soft-deleted stage, we'll delete it from the database
+            # to avoid unique constraint issues, then create a new one
+            self.db.delete(soft_deleted_stage)
+            self.db.commit()
+        
         # Create the new stage
         new_stage = TournamentStage(
             tournament_id=tournament_id,
@@ -345,26 +358,61 @@ class TournamentStagingService:
                     detail="Couple is already assigned to another group in this stage"
                 )
         
-        # Create the group-couple association
-        new_group_couple = TournamentGroupCouple(
-            group_id=group_id,
-            couple_id=couple_id
+        # Check for soft-deleted records with the same group_id and couple_id
+        soft_deleted_record = (
+            self.db.query(TournamentGroupCouple)
+            .filter(
+                TournamentGroupCouple.group_id == group_id,
+                TournamentGroupCouple.couple_id == couple_id,
+                TournamentGroupCouple.deleted_at.is_not(None)
+            )
+            .first()
         )
         
-        self.db.add(new_group_couple)
-        
-        # Initialize the couple stats for this group
-        stats = CoupleStats(
-            tournament_id=group.stage.tournament_id,
-            couple_id=couple_id,
-            group_id=group_id
-        )
-        
-        self.db.add(stats)
-        self.db.commit()
-        self.db.refresh(new_group_couple)
-        
-        return new_group_couple
+        if soft_deleted_record:
+            # Update the existing record instead of creating a new one
+            soft_deleted_record.deleted_at = None
+            self.db.commit()
+            self.db.refresh(soft_deleted_record)
+            
+            # Initialize or update the couple stats for this group
+            stats = self.db.query(CoupleStats).filter(
+                CoupleStats.tournament_id == group.stage.tournament_id,
+                CoupleStats.couple_id == couple_id,
+                CoupleStats.group_id == group_id
+            ).first()
+            
+            if not stats:
+                stats = CoupleStats(
+                    tournament_id=group.stage.tournament_id,
+                    couple_id=couple_id,
+                    group_id=group_id
+                )
+                self.db.add(stats)
+                self.db.commit()
+            
+            return soft_deleted_record
+        else:
+            # Create a new group-couple association
+            new_group_couple = TournamentGroupCouple(
+                group_id=group_id,
+                couple_id=couple_id
+            )
+            
+            self.db.add(new_group_couple)
+            
+            # Initialize the couple stats for this group
+            stats = CoupleStats(
+                tournament_id=group.stage.tournament_id,
+                couple_id=couple_id,
+                group_id=group_id
+            )
+            
+            self.db.add(stats)
+            self.db.commit()
+            self.db.refresh(new_group_couple)
+            
+            return new_group_couple
         
     def remove_couple_from_group(self, group_id: int, couple_id: int, company_id: int) -> None:
         """Remove a couple from a tournament group"""
@@ -484,20 +532,45 @@ class TournamentStagingService:
             group_index = 0
             for couple in available_couples:
                 group = groups[group_index % len(groups)]
-                assignment = TournamentGroupCouple(
-                    group_id=group.id,
-                    couple_id=couple.id
+                
+                # Check for soft-deleted records with the same group_id and couple_id
+                soft_deleted_record = (
+                    self.db.query(TournamentGroupCouple)
+                    .filter(
+                        TournamentGroupCouple.group_id == group.id,
+                        TournamentGroupCouple.couple_id == couple.id,
+                        TournamentGroupCouple.deleted_at.is_not(None)
+                    )
+                    .first()
                 )
-                self.db.add(assignment)
-                assignments.append(assignment)
+                
+                if soft_deleted_record:
+                    # Update the existing record instead of creating a new one
+                    soft_deleted_record.deleted_at = None
+                    assignments.append(soft_deleted_record)
+                else:
+                    # Create a new group-couple association
+                    assignment = TournamentGroupCouple(
+                        group_id=group.id,
+                        couple_id=couple.id
+                    )
+                    self.db.add(assignment)
+                    assignments.append(assignment)
                 
                 # Initialize the couple stats for this group
-                stats = CoupleStats(
-                    tournament_id=stage.tournament_id,
-                    couple_id=couple.id,
-                    group_id=group.id
-                )
-                self.db.add(stats)
+                stats = self.db.query(CoupleStats).filter(
+                    CoupleStats.tournament_id == stage.tournament_id,
+                    CoupleStats.couple_id == couple.id,
+                    CoupleStats.group_id == group.id
+                ).first()
+                
+                if not stats:
+                    stats = CoupleStats(
+                        tournament_id=stage.tournament_id,
+                        couple_id=couple.id,
+                        group_id=group.id
+                    )
+                    self.db.add(stats)
                 
                 group_index += 1
                 

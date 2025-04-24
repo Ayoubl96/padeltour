@@ -1,5 +1,5 @@
 from app.models.base import *
-from sqlalchemy import Boolean
+from sqlalchemy import Boolean, Index
 
 class Tournament(Base):
     __tablename__ = "tournaments"
@@ -43,9 +43,8 @@ class TournamentStage(Base):
     brackets = relationship("TournamentBracket", back_populates="stage")
     matches = relationship("Match", back_populates="stage")
     
-    # Constraints
+    # Standard unique constraint - we'll handle soft deletes in the application code
     __table_args__ = (
-        # Unique constraint for stage order within a tournament
         UniqueConstraint('tournament_id', 'order', name='unique_stage_order_per_tournament'),
     )
 

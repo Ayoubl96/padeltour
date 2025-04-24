@@ -627,8 +627,8 @@ For visualizing tournament structures, consider:
 For the scheduling interface:
 
 1. **Calendar View**:
-   - Show a daily/weekly calendar view of courts and schedules
-   - Display color-coded time blocks for matches
+   - Show a daily/hourly calendar view of courts and schedules
+   - Display color-coded time blocks for matches with coules, status of match and court
    - Visually represent free slots for manual scheduling
 
 2. **Scheduling Form**:
@@ -657,3 +657,6 @@ Consider implementing:
 1. WebSocket connections for real-time match results
 2. Automatic standings updates as matches complete
 3. Push notifications for scheduled matches
+This art for now take only consideration, not imlement nothing
+
+
