@@ -11,11 +11,39 @@ from app.services.company_service import CompanyService
 router = APIRouter()
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED, response_model=schemas.CompanyOut)
-def create_company(
+@router.post("/", status_code=status.HTTP_410_GONE)
+def create_company_deprecated():
+    """
+    DEPRECATED: Direct company creation is no longer supported.
+    Please use the registration flow instead.
+    """
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail={
+            "message": "Direct company creation is deprecated. Please use the registration flow with email verification.",
+            "registration_endpoints": {
+                "step_1": "POST /api/v1/register/initiate - Send verification code",
+                "step_2": "POST /api/v1/register/verify - Complete registration",
+                "resend": "POST /api/v1/register/resend - Resend verification code"
+            },
+            "documentation": "/docs#/Registration"
+        }
+    )
+
+
+@router.post("/admin/create", status_code=status.HTTP_201_CREATED, response_model=schemas.CompanyOut)
+def create_company_admin(
     company_data: schemas.CompanyBase,
     db: Session = Depends(get_db)
+    # TODO: Add admin authentication here
+    # current_admin: Admin = Depends(get_current_admin)
 ):
+    """
+    ADMIN ONLY: Create company without email verification.
+    This endpoint is for internal use only.
+    
+    TODO: Implement admin authentication before using in production.
+    """
     company_service = CompanyService(db)
     return company_service.create_company(
         email=company_data.email,

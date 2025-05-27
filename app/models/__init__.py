@@ -2,6 +2,7 @@ from app.models.base import Base
 from app.models.company import Company
 from app.models.court import Court
 from app.models.player import Player, PlayerCompany
+from app.models.email_verification import EmailVerification
 from app.models.tournament import (
     Tournament, 
     TournamentPlayer, 
@@ -18,6 +19,7 @@ __all__ = [
     'Court',
     'Player',
     'PlayerCompany',
+    'EmailVerification',
     'Tournament',
     'TournamentPlayer',
     'TournamentCouple',

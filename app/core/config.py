@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from typing import Optional
 
 
 class Settings(BaseSettings):
@@ -16,6 +17,10 @@ class Settings(BaseSettings):
     playtomic_api_url: str
     playtomic_email: str
     playtomic_password: str
+    
+    # Loops Email Configuration (Optional for now)
+    loops_api_key: Optional[str] = None
+    loops_verification_template_id: Optional[str] = None
 
     class Config:
         env_file = ".env"

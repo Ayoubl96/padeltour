@@ -72,8 +72,33 @@ class TournamentStagingService:
         ).first()
         
         if soft_deleted_stage:
-            # Instead of updating the soft-deleted stage, we'll delete it from the database
-            # to avoid unique constraint issues, then create a new one
+            # Before deleting the stage, we need to delete its related brackets first
+            # to avoid foreign key constraint violations
+            brackets = self.db.query(TournamentBracket).filter(
+                TournamentBracket.stage_id == soft_deleted_stage.id
+            ).all()
+            
+            for bracket in brackets:
+                self.db.delete(bracket)
+            
+            # Also delete related groups
+            groups = self.db.query(TournamentGroup).filter(
+                TournamentGroup.stage_id == soft_deleted_stage.id
+            ).all()
+            
+            for group in groups:
+                # Delete group-couple associations first
+                group_couples = self.db.query(TournamentGroupCouple).filter(
+                    TournamentGroupCouple.group_id == group.id
+                ).all()
+                
+                for group_couple in group_couples:
+                    self.db.delete(group_couple)
+                
+                # Delete the group
+                self.db.delete(group)
+            
+            # Now we can safely delete the stage
             self.db.delete(soft_deleted_stage)
             self.db.commit()
         

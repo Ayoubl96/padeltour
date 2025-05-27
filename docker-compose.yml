@@ -22,6 +22,8 @@ services:
       - PLAYTOMIC_API_URL=${PLAYTOMIC_API_URL}
       - PLAYTOMIC_EMAIL=${PLAYTOMIC_EMAIL}
       - PLAYTOMIC_PASSWORD=${PLAYTOMIC_PASSWORD}
+      - LOOPS_API_KEY=${LOOPS_API_KEY}
+      - LOOPS_VERIFICATION_TEMPLATE_ID=${LOOPS_VERIFICATION_TEMPLATE_ID}
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       - postgres
