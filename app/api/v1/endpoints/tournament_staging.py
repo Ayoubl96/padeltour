@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, status, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
-from datetime import datetime, date
+from typing import List, Optional, Dict
+from datetime import datetime, date, timezone
 
 from app import schemas
 from app.core.security import get_current_user
@@ -238,15 +238,78 @@ def delete_tournament_bracket(
     staging_service.delete_bracket(bracket_id, current_company.id)
     return None
 
-@router.post("/bracket/{bracket_id}/generate-matches", response_model=List[schemas.MatchOut])
-def generate_bracket_matches(
-    bracket_id: int,
+# Match generation endpoint at the stage level
+@router.post("/stage/{stage_id}/generate-matches", response_model=List[schemas.MatchOut])
+def generate_stage_matches(
+    stage_id: int,
     couples: Optional[List[int]] = None,
     db: Session = Depends(get_db),
     current_company: Company = Depends(get_current_user)
 ):
+    """
+    Generate matches for a stage. Works for both group stages and elimination stages.
+    For group stages, it generates matches for all groups.
+    For elimination stages, it generates matches for the main bracket.
+    """
     staging_service = TournamentStagingService(db)
-    return staging_service.generate_bracket_matches(bracket_id, current_company.id, couples)
+    return staging_service.generate_stage_matches(stage_id, current_company.id, couples)
+
+# Match retrieval endpoints
+@router.get("/stage/{stage_id}/matches", response_model=List[schemas.MatchOut])
+def get_stage_matches(
+    stage_id: int,
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    scheduling_service = MatchSchedulingService(db)
+    return scheduling_service.get_stage_matches(stage_id, current_company.id)
+
+@router.get("/tournament/{tournament_id}/matches", response_model=List[schemas.MatchOut])
+def get_tournament_matches(
+    tournament_id: int,
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    scheduling_service = MatchSchedulingService(db)
+    return scheduling_service.get_tournament_matches(tournament_id, current_company.id)
+
+@router.get("/group/{group_id}/matches", response_model=List[schemas.MatchOut])
+def get_group_matches(
+    group_id: int,
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    scheduling_service = MatchSchedulingService(db)
+    return scheduling_service.get_group_matches(group_id, current_company.id)
+
+@router.get("/bracket/{bracket_id}/matches", response_model=List[schemas.MatchOut])
+def get_bracket_matches(
+    bracket_id: int,
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    scheduling_service = MatchSchedulingService(db)
+    return scheduling_service.get_bracket_matches(bracket_id, current_company.id)
+
+@router.get("/match/{match_id}", response_model=schemas.MatchOut)
+def get_match_by_id(
+    match_id: int,
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    scheduling_service = MatchSchedulingService(db)
+    return scheduling_service.get_match_by_id(match_id, current_company.id)
+
+@router.put("/match/{match_id}", response_model=schemas.MatchOut)
+def update_match(
+    match_id: int,
+    match_data: schemas.MatchUpdate,
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    scheduling_service = MatchSchedulingService(db)
+    update_data = match_data.dict(exclude_unset=True)
+    return scheduling_service.update_match(match_id, current_company.id, update_data)
 
 # Match generation and scheduling endpoints
 @router.post("/group/{group_id}/generate-matches", response_model=List[schemas.MatchOut])
@@ -255,8 +318,21 @@ def generate_group_matches(
     db: Session = Depends(get_db),
     current_company: Company = Depends(get_current_user)
 ):
+    """
+    Generate matches for a specific group. This is now a wrapper around the stage-level endpoint.
+    """
     scheduling_service = MatchSchedulingService(db)
-    return scheduling_service.generate_group_matches(group_id, current_company.id)
+    staging_service = TournamentStagingService(db)
+    
+    # Get the group to find its stage
+    group = staging_service.get_group_by_id(group_id, current_company.id)
+    stage_id = group.stage_id
+    
+    # Generate matches for the entire stage
+    matches = staging_service.generate_stage_matches(stage_id, current_company.id)
+    
+    # Return only the matches for this specific group
+    return scheduling_service.get_group_matches(group_id, current_company.id)
 
 @router.post("/match/{match_id}/schedule", response_model=schemas.MatchOut)
 def schedule_match(
@@ -305,21 +381,76 @@ def get_court_availability(
 @router.post("/tournament/{tournament_id}/auto-schedule", response_model=List[schemas.MatchOut])
 def auto_schedule_matches(
     tournament_id: int,
-    start_date: date,
-    end_date: Optional[date] = None,
+    start_date: Optional[str] = None,  # Make it optional for order-only mode
+    end_date: Optional[str] = None,
+    order_only: bool = False,  # Add order-only parameter
     db: Session = Depends(get_db),
     current_company: Company = Depends(get_current_user)
 ):
-    # Convert dates to datetime
-    start_datetime = datetime.combine(start_date, datetime.min.time())
-    end_datetime = None
-    if end_date:
-        end_datetime = datetime.combine(end_date, datetime.max.time())
-        
+    """
+    Auto-schedule matches for a tournament.
+    
+    - order_only: If True, only assign courts and sequence order without specific times.
+    - start_date: Required if order_only=False. Date in YYYY-MM-DD format or ISO datetime.
+    - end_date: Optional end date in YYYY-MM-DD format or ISO datetime.
+    """
     scheduling_service = MatchSchedulingService(db)
+    
+    # If order_only mode is requested, don't need date parameters
+    if order_only:
+        return scheduling_service.auto_order_matches(tournament_id, current_company.id)
+        
+    # For timed scheduling, we need at least a start date
+    if not start_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="start_date is required for timed scheduling. Use order_only=True for order-only scheduling."
+        )
+        
+    try:
+        # Parse dates as naive datetime objects (no timezone)
+        start_datetime = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+        # Strip timezone info to make it naive
+        start_datetime = start_datetime.replace(tzinfo=None)
+        
+        end_datetime = None
+        if end_date:
+            end_datetime = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            # Strip timezone info to make it naive
+            end_datetime = end_datetime.replace(tzinfo=None)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid date format. Use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)"
+        )
+        
     return scheduling_service.auto_schedule_matches(
         tournament_id=tournament_id,
         company_id=current_company.id,
         start_date=start_datetime,
-        end_date=end_datetime
-    ) 
+        end_date=end_datetime,
+        order_only=order_only
+    )
+
+@router.post("/bracket/{bracket_id}/generate-matches", response_model=List[schemas.MatchOut])
+def generate_bracket_matches(
+    bracket_id: int,
+    couples: Optional[List[int]] = None,
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    """
+    Generate matches for a specific bracket. This is now a wrapper around the stage-level endpoint.
+    """
+    scheduling_service = MatchSchedulingService(db)
+    staging_service = TournamentStagingService(db)
+    
+    # Get the bracket to find its stage
+    bracket = staging_service.get_bracket_by_id(bracket_id, current_company.id)
+    stage_id = bracket.stage_id
+    
+    # Generate matches for the entire stage, specifying couples if provided
+    matches = staging_service.generate_stage_matches(stage_id, current_company.id, couples)
+    
+    # Return only the matches for this specific bracket
+    return scheduling_service.get_bracket_matches(bracket_id, current_company.id) 

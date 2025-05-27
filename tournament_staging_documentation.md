@@ -385,19 +385,149 @@ DELETE /staging/bracket/{bracket_id}
 POST /staging/bracket/{bracket_id}/generate-matches
 ```
 
-Optional request body (if not using automatic advancement from group stage):
+Optional request body:
 ```json
 {
   "couples": [1, 2, 3, 4, 5, 6, 7, 8]
 }
 ```
 
+This endpoint:
+- Generates bracket matches based on the provided couples or automatically using winners from group stages
+- Automatically assigns available courts to all generated matches
+- Distributes matches evenly across all courts available for the tournament
+
+### Match Retrieval and Management
+
+#### Get Tournament Matches
+
+```
+GET /staging/tournament/{tournament_id}/matches
+```
+
+Returns all matches for a specific tournament.
+
+#### Get Stage Matches
+
+```
+GET /staging/stage/{stage_id}/matches
+```
+
+Returns all matches for a specific stage.
+
+#### Get Group Matches
+
+```
+GET /staging/group/{group_id}/matches
+```
+
+Returns all matches for a specific group.
+
+#### Get Bracket Matches
+
+```
+GET /staging/bracket/{bracket_id}/matches
+```
+
+Returns all matches for a specific bracket.
+
+#### Get Match by ID
+
+```
+GET /staging/match/{match_id}
+```
+
+Returns detailed information about a specific match.
+
+#### Update Match Details
+
+```
+PUT /staging/match/{match_id}
+```
+
+Updates match details including results, scheduling, and status.
+
+**Request Body:**
+```json
+{
+  "winner_couple_id": 1,
+  "games": [
+    {
+      "game_number": 1,
+      "couple1_score": 6,
+      "couple2_score": 4,
+      "winner_id": 1,
+      "duration_minutes": 20
+    },
+    {
+      "game_number": 2,
+      "couple1_score": 6,
+      "couple2_score": 2,
+      "winner_id": 1,
+      "duration_minutes": 18
+    }
+  ],
+  "match_result_status": "completed",
+  "court_id": 3,
+  "scheduled_start": "2023-08-15T14:00:00Z",
+  "scheduled_end": "2023-08-15T15:30:00Z",
+  "is_time_limited": true,
+  "time_limit_minutes": 90
+}
+```
+
+Note: All fields are optional. Only include the fields you want to update.
+
 ### Match Generation and Scheduling
 
-#### Generate Group Matches
+#### Generate Stage Matches (Recommended)
+
+```
+POST /staging/stage/{stage_id}/generate-matches
+```
+
+This is the recommended endpoint for generating matches. It handles both group stages and elimination stages automatically:
+
+- For group stages: Generates matches for all groups in the stage
+- For elimination stages: Generates matches for the main bracket
+
+Optional request body:
+```json
+{
+  "couples": [1, 2, 3, 4, 5, 6, 7, 8]
+}
+```
+
+Notes:
+- The `couples` parameter is only used for elimination stages
+- Courts are automatically assigned to matches using an intelligent group-aware algorithm:
+  - When there are enough courts, each group gets its own dedicated court
+  - When there are more courts than groups, some matches are assigned to extra courts to allow parallel play
+  - Groups with more matches get priority for parallel court assignments
+  - The system balances court usage to keep all groups progressing at similar rates
+- For bracket matches, courts are assigned in a round-robin fashion
+
+#### Generate Group Matches (Legacy)
 
 ```
 POST /staging/group/{group_id}/generate-matches
+```
+
+This endpoint is maintained for backward compatibility. It now calls the stage-level endpoint internally.
+
+#### Generate Bracket Matches (Legacy)
+
+```
+POST /staging/bracket/{bracket_id}/generate-matches
+```
+
+This endpoint is maintained for backward compatibility. It now calls the stage-level endpoint internally.
+
+Optional request body:
+```json
+{
+  "couples": [1, 2, 3, 4, 5, 6, 7, 8]
+}
 ```
 
 #### Schedule a Match
@@ -461,12 +591,38 @@ GET /staging/tournament/{tournament_id}/court-availability?date=2023-07-20
 #### Auto-schedule Matches
 
 ```
-POST /staging/tournament/{tournament_id}/auto-schedule?start_date=2023-07-20&end_date=2023-07-21
+POST /staging/tournament/{tournament_id}/auto-schedule
 ```
 
+Two scheduling modes are available:
+
+1. **Time-based Scheduling** - assigns specific start/end times to matches:
+
 Query parameters:
-- `start_date`: Start date (YYYY-MM-DD)
-- `end_date`: (optional) End date (YYYY-MM-DD)
+- `start_date`: Required for time-based scheduling. Date in ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
+- `end_date`: Optional end date in ISO format
+- `order_only`: Set to `false` (default)
+
+2. **Order-only Scheduling** - assigns courts and sequence order without specific times:
+
+Query parameters:
+- `order_only`: Set to `true`
+- `start_date` and `end_date` are not required
+
+Notes:
+- Order-only scheduling is automatically used if matches don't have time limits configured
+- Order-only scheduling is suitable when match durations are variable or unknown
+- Time-based scheduling requires time limits to be configured in the stage's match rules
+
+**Time-based Example:**
+```
+POST /staging/tournament/1/auto-schedule?start_date=2023-07-20&end_date=2023-07-21
+```
+
+**Order-only Example:**
+```
+POST /staging/tournament/1/auto-schedule?order_only=true
+```
 
 ## Common Workflows
 
@@ -499,11 +655,11 @@ Query parameters:
    POST /staging/stage/{stage_id}/assign-couples
    ```
 
-5. **Generate matches for each group**
+5. **Generate matches for the stage**
    ```
-   POST /staging/group/{group_id}/generate-matches
+   POST /staging/stage/{stage_id}/generate-matches
    ```
-   Repeat for each group
+   This generates matches for all groups in the stage and automatically assigns courts.
 
 6. **Create an elimination stage**
    ```
@@ -511,11 +667,14 @@ Query parameters:
    ```
    With stage_type = "elimination" and order = 2
 
-7. **Generate bracket matches**
+7. **Generate matches for the elimination stage**
    ```
-   POST /staging/bracket/{bracket_id}/generate-matches
+   POST /staging/stage/{stage_id}/generate-matches
    ```
-   This automatically uses the winners from the group stage
+   This automatically:
+   - Uses the winners from the group stage
+   - Creates the main bracket if needed
+   - Assigns courts to all generated matches
 
 8. **Schedule matches**
    Either manually:
@@ -527,136 +686,66 @@ Query parameters:
    POST /staging/tournament/{tournament_id}/auto-schedule
    ```
 
+### Managing Match Results
+
+1. **View all matches for a tournament**
+   ```
+   GET /staging/tournament/{tournament_id}/matches
+   ```
+
+2. **View matches for a specific stage**
+   ```
+   GET /staging/stage/{stage_id}/matches
+   ```
+
+3. **View matches for a specific group**
+   ```
+   GET /staging/group/{group_id}/matches
+   ```
+
+4. **View matches for a specific bracket**
+   ```
+   GET /staging/bracket/{bracket_id}/matches
+   ```
+
+5. **Get details for a specific match**
+   ```
+   GET /staging/match/{match_id}
+   ```
+
+6. **Update match results**
+   ```
+   PUT /staging/match/{match_id}
+   ```
+   With a JSON body containing the games played and scores, plus the match_result_status
+
+7. **View updated group standings after matches**
+   ```
+   GET /staging/group/{group_id}/standings
+   ```
+
 ### Tournament Stage Configuration Options
 
-#### Scoring System
-- `type`: Scoring method (`points`, `games`, `both`)
-- `win`: Points for win (default: 3)
-- `draw`: Points for draw (default: 1)
-- `loss`: Points for loss (default: 0)
-- `game_win`: Points per game won (default: 1)
-- `game_loss`: Points per game lost (default: 0)
+## Court Assignment Logic
 
-#### Match Rules
-- `matches_per_opponent`: Number of matches against each opponent (default: 1)
-- `games_per_match`: Number of games per match (default: 3)
-- `win_criteria`: How to determine the winner (`best_of`, `all_games`, `time_based`)
-- `time_limited`: Whether matches have a time limit (default: false)
-- `time_limit_minutes`: Duration of time-limited matches (default: 90)
-- `break_between_matches`: Minutes between matches (default: 30)
+The system uses an intelligent algorithm for court assignments during match generation:
 
-#### Advancement Rules
-- `top_n`: Number of couples to advance from each group (default: 2)
-- `to_bracket`: Bracket type to advance to (`main`, `silver`, `bronze`)
-- `tiebreaker`: Array of tiebreaker methods in order of application
+### Group Stage Court Assignment
 
-#### Scheduling Options
-- `auto_schedule`: Whether to auto-schedule matches (default: true)
-- `overlap_allowed`: Whether to allow overlapping matches (default: false)
-- `scheduling_priority`: Scheduling priority (`court_efficiency`, `player_rest`)
+1. **One Court Per Group (when possible)**
+   - When there are enough courts, each group is assigned its own dedicated court
+   - This keeps all matches for the same group on the same court for convenience
 
-## Tiebreaker Rules
+2. **Parallel Play Optimization**
+   - When there are more courts than groups, the system enables parallel play
+   - Groups with more matches get priority for parallel court assignments
+   - Every other match from larger groups gets assigned to extra courts
+   - This maintains similar timeline progression for all groups
 
-The system supports the following tiebreaker options:
+3. **Court Sharing**
+   - When there are more groups than courts, multiple groups share courts
+   - Groups are distributed evenly across available courts
 
-1. `points`: Total points accumulated
-2. `head_to_head`: Results of matches between tied couples
-3. `games_diff`: Difference between games won and lost
-4. `games_won`: Total number of games won
-5. `matches_won`: Total number of matches won
+### Elimination/Bracket Stage Court Assignment
 
-## Bracket Types
-
-The system supports three types of brackets:
-
-1. `main`: Main bracket for tournament winners
-2. `silver`: Secondary bracket (e.g., for 3rd-4th place in groups)
-3. `bronze`: Tertiary bracket (e.g., for 5th-6th place in groups)
-
-## Court Availability
-
-The system tracks court availability and prevents double-booking. When scheduling matches:
-
-1. Each court can have a specific availability timeframe
-2. The system checks for conflicts with existing scheduled matches
-3. Auto-scheduling attempts to optimize court usage based on the priority setting
-
-## Error Handling
-
-All endpoints follow a consistent error response format:
-
-```json
-{
-  "detail": "Error message describing the issue"
-}
-```
-
-Common error status codes:
-- `400`: Bad Request (invalid input)
-- `403`: Forbidden (unauthorized access)
-- `404`: Not Found (resource doesn't exist)
-
-## Match Result Status
-
-Matches can have the following statuses:
-
-- `pending`: Not yet played
-- `completed`: Finished normally
-- `time_expired`: Ended due to time limit
-- `forfeited`: One team forfeited
-
-## Frontend Implementation Guidelines
-
-### Tournament Structure Visualization
-
-For visualizing tournament structures, consider:
-
-1. **Group Stage**: 
-   - Display groups in a table format showing standings
-   - Each group should show couples, match counts, points, and positions
-   - Use color coding to highlight advancement positions
-
-2. **Elimination Brackets**:
-   - Implement a traditional bracket visualization
-   - Show upcoming matches with scheduled times
-   - Display completed match results within the bracket
-   - Highlight the path to the final
-
-### Match Scheduling Interface
-
-For the scheduling interface:
-
-1. **Calendar View**:
-   - Show a daily/hourly calendar view of courts and schedules
-   - Display color-coded time blocks for matches with coules, status of match and court
-   - Visually represent free slots for manual scheduling
-
-2. **Scheduling Form**:
-   - Provide time pickers with validation based on court availability
-   - Include clear error messages for scheduling conflicts
-   - Allow drag-and-drop scheduling where possible
-
-### Configuration Forms
-
-For tournament configuration:
-
-1. **Stage Creation**:
-   - Use steppers or wizards for complex configuration
-   - Provide sensible defaults for all configuration options
-   - Include tooltips explaining each configuration option
-
-2. **Group Management**:
-   - Provide interface to create multiple groups at once
-   - Include drag-and-drop interfaces for couple assignment
-   - Display warnings for uneven group assignments
-
-### Real-time Updates
-
-Consider implementing:
-
-1. WebSocket connections for real-time match results
-2. Automatic standings updates as matches complete
-3. Push notifications for scheduled matches
-This art for now take only consideration, not imlement nothing
-
-
+For bracket matches, courts are assigned in a round-robin fashion to distribute matches evenly across all available courts.

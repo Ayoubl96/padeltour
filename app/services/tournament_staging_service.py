@@ -15,6 +15,7 @@ from app.core.constants import (
     SchedulingPriority, TiebreakerOption, MatchResultStatus,
     DEFAULT_STAGE_CONFIG
 )
+from app.services.match_scheduling_service import MatchSchedulingService
 
 
 class TournamentStagingService:
@@ -966,5 +967,115 @@ class TournamentStagingService:
         # Refresh all matches to get their IDs
         for match in matches:
             self.db.refresh(match)
+        
+        # Automatically assign courts to the matches
+        scheduling_service = MatchSchedulingService(self.db)
+        matches = scheduling_service.auto_assign_courts(matches, tournament_id)
             
-        return matches 
+        return matches
+
+    def generate_stage_matches(self, stage_id: int, company_id: int, couples: List[int] = None) -> List[Match]:
+        """Generate matches for an entire stage, handling both group and elimination stages"""
+        # Get the stage with ownership validation
+        stage = self.get_stage_by_id(stage_id, company_id)
+        
+        # Check if matches already exist for this stage
+        existing_matches = self.db.query(Match).filter(Match.stage_id == stage_id).count()
+        if existing_matches > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{existing_matches} matches already exist for this stage"
+            )
+        
+        # Create scheduling service for court assignment
+        scheduling_service = MatchSchedulingService(self.db)
+        
+        # Generate matches based on stage type
+        if stage.stage_type == StageType.GROUP:
+            # For group stages, get all groups and generate matches for each
+            groups = self.get_stage_groups(stage_id, company_id)
+            if not groups:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No groups found in this stage"
+                )
+            
+            all_matches = []
+            for group in groups:
+                # Get couples in this group
+                group_couples = self.get_group_couples(group.id, company_id)
+                couple_ids = [c.id for c in group_couples]
+                
+                if len(couple_ids) < 2:
+                    # Skip groups with insufficient couples
+                    continue
+                
+                # Create matches
+                stage_config = stage.config
+                match_rules = stage_config.get("match_rules", {})
+                matches_per_opponent = match_rules.get("matches_per_opponent", 1)
+                is_time_limited = match_rules.get("time_limited", False)
+                time_limit_minutes = match_rules.get("time_limit_minutes", 90)
+                
+                # Create all pairings for this group
+                group_matches = []
+                for i in range(len(couple_ids)):
+                    for j in range(i + 1, len(couple_ids)):
+                        for _ in range(matches_per_opponent):
+                            match = Match(
+                                tournament_id=stage.tournament_id,
+                                stage_id=stage.id,
+                                group_id=group.id,
+                                couple1_id=couple_ids[i],
+                                couple2_id=couple_ids[j],
+                                games=[],
+                                is_time_limited=is_time_limited,
+                                time_limit_minutes=time_limit_minutes,
+                                match_result_status=MatchResultStatus.PENDING
+                            )
+                            group_matches.append(match)
+                
+                # Add all matches to database
+                for match in group_matches:
+                    self.db.add(match)
+                
+                all_matches.extend(group_matches)
+            
+            # Commit all matches
+            self.db.commit()
+            
+            # Refresh matches to get their IDs
+            for match in all_matches:
+                self.db.refresh(match)
+                
+            # Automatically assign courts
+            all_matches = scheduling_service.auto_assign_courts(all_matches, stage.tournament_id)
+            
+            return all_matches
+                
+        elif stage.stage_type == StageType.ELIMINATION:
+            # For elimination stages, find or create main bracket and generate matches
+            bracket = self.db.query(TournamentBracket).filter(
+                TournamentBracket.stage_id == stage_id,
+                TournamentBracket.bracket_type == BracketType.MAIN,
+                TournamentBracket.deleted_at.is_(None)
+            ).first()
+            
+            if not bracket:
+                # Create main bracket if it doesn't exist
+                bracket = TournamentBracket(
+                    stage_id=stage_id,
+                    bracket_type=BracketType.MAIN
+                )
+                self.db.add(bracket)
+                self.db.commit()
+                self.db.refresh(bracket)
+            
+            # Use existing method to generate bracket matches
+            return self.generate_bracket_matches(bracket.id, company_id, couples)
+        
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported stage type: {stage.stage_type}"
+            ) 
