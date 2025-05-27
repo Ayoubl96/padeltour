@@ -14,40 +14,46 @@ class BracketType(str, Enum):
 # Scoring Types
 class ScoringType(str, Enum):
     POINTS = "points"
-    GAMES = "games"
-    BOTH = "both"
+    WINS = "wins"
 
 # Win Criteria Types
 class WinCriteria(str, Enum):
     BEST_OF = "best_of"
-    ALL_GAMES = "all_games"
-    TIME_BASED = "time_based"
+    FIRST_TO = "first_to"
 
 # Assignment Methods
 class AssignmentMethod(str, Enum):
-    MANUAL = "manual"
     RANDOM = "random"
+    SEEDED = "seeded"
     BALANCED = "balanced"
 
 # Scheduling Priorities
 class SchedulingPriority(str, Enum):
     COURT_EFFICIENCY = "court_efficiency"
-    PLAYER_REST = "player_rest"
+    TIME_EFFICIENCY = "time_efficiency"
+    GROUP_BALANCE = "group_balance"
 
 # Tiebreaker Options
 class TiebreakerOption(str, Enum):
     POINTS = "points"
-    HEAD_TO_HEAD = "head_to_head" 
+    HEAD_TO_HEAD = "head_to_head"
     GAMES_DIFF = "games_diff"
     GAMES_WON = "games_won"
-    MATCHES_WON = "matches_won"
 
 # Match Result Status
 class MatchResultStatus(str, Enum):
+    PENDING = "pending"
     COMPLETED = "completed"
     TIME_EXPIRED = "time_expired"
     FORFEITED = "forfeited"
-    PENDING = "pending"
+
+# Match Formats
+class MatchFormat(str, Enum):
+    ROUND_ROBIN = "round_robin"  # Every couple plays every other couple
+    SINGLE_ELIMINATION = "single_elimination"  # Single knockout
+    DOUBLE_ELIMINATION = "double_elimination"  # Double knockout
+    SWISS_SYSTEM = "swiss_system"  # Swiss tournament system
+    CUSTOM = "custom"  # Custom pairing logic
 
 # Default Configurations
 DEFAULT_SCORING_SYSTEM = {
@@ -60,6 +66,7 @@ DEFAULT_SCORING_SYSTEM = {
 }
 
 DEFAULT_MATCH_RULES = {
+    "match_format": MatchFormat.ROUND_ROBIN,
     "matches_per_opponent": 1,
     "games_per_match": 3,
     "win_criteria": WinCriteria.BEST_OF,

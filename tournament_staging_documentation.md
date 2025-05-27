@@ -32,12 +32,16 @@ The Tournament Staging System allows organizers to structure tournaments with mu
       "game_loss": 0
     },
     "match_rules": {
+      "match_format": "round_robin",
       "matches_per_opponent": 1,
       "games_per_match": 3,
       "win_criteria": "best_of",
       "time_limited": false,
       "time_limit_minutes": 90,
-      "break_between_matches": 30
+      "break_between_matches": 30,
+      "swiss_rounds": 5,
+      "max_matches_per_group": 20,
+      "min_matches_per_couple": 3
     },
     "advancement_rules": {
       "top_n": 2,
@@ -148,12 +152,16 @@ POST /staging/tournament/{tournament_id}/stage
       "game_loss": 0
     },
     "match_rules": {
+      "match_format": "round_robin",
       "matches_per_opponent": 1,
       "games_per_match": 3,
       "win_criteria": "best_of",
       "time_limited": false,
       "time_limit_minutes": 90,
-      "break_between_matches": 30
+      "break_between_matches": 30,
+      "swiss_rounds": 5,
+      "max_matches_per_group": 20,
+      "min_matches_per_couple": 3
     },
     "advancement_rules": {
       "top_n": 2,
@@ -726,6 +734,55 @@ POST /staging/tournament/1/auto-schedule?order_only=true
 
 ### Tournament Stage Configuration Options
 
+## Match Generation Formats
+
+The system supports multiple match generation formats for group stages:
+
+### Round Robin (Default)
+- **Format**: `"match_format": "round_robin"`
+- **Description**: Every couple plays against every other couple exactly once
+- **Number of matches**: For n couples, generates C(n,2) = n×(n-1)/2 matches
+- **Example**: 10 couples = 45 matches, 8 couples = 28 matches, 6 couples = 15 matches
+- **Best for**: Fair competition where all couples play the same number of matches
+
+### Swiss System
+- **Format**: `"match_format": "swiss_system"`
+- **Description**: Couples are paired based on similar performance after each round
+- **Number of matches**: Configurable via `"swiss_rounds"` (default: min(n-1, 5))
+- **Example**: 10 couples with 5 rounds = 25 matches (5 matches per couple)
+- **Best for**: Large groups where round-robin would create too many matches
+- **Configuration**:
+  ```json
+  "match_rules": {
+    "match_format": "swiss_system",
+    "swiss_rounds": 5,
+    "matches_per_opponent": 1
+  }
+  ```
+
+### Custom Format
+- **Format**: `"match_format": "custom"`
+- **Description**: Flexible format with configurable match limits
+- **Number of matches**: Controlled by `"max_matches_per_group"` and `"min_matches_per_couple"`
+- **Best for**: Tournaments with time constraints or specific match requirements
+- **Configuration**:
+  ```json
+  "match_rules": {
+    "match_format": "custom",
+    "max_matches_per_group": 20,
+    "min_matches_per_couple": 3,
+    "matches_per_opponent": 1
+  }
+  ```
+
+### Match Format Comparison
+
+| Format | 6 Couples | 8 Couples | 10 Couples | 12 Couples |
+|--------|-----------|-----------|------------|------------|
+| Round Robin | 15 matches | 28 matches | 45 matches | 66 matches |
+| Swiss (5 rounds) | 15 matches | 20 matches | 25 matches | 30 matches |
+| Custom (max 20) | 15 matches | 20 matches | 20 matches | 20 matches |
+
 ## Court Assignment Logic
 
 The system uses an intelligent algorithm for court assignments during match generation:
@@ -736,15 +793,28 @@ The system uses an intelligent algorithm for court assignments during match gene
    - When there are enough courts, each group is assigned its own dedicated court
    - This keeps all matches for the same group on the same court for convenience
 
-2. **Parallel Play Optimization**
+2. **Improved Parallel Play Optimization**
    - When there are more courts than groups, the system enables parallel play
-   - Groups with more matches get priority for parallel court assignments
-   - Every other match from larger groups gets assigned to extra courts
+   - **NEW**: Better distribution algorithm that spreads matches more evenly across extra courts
+   - Calculates optimal matches per extra court: `total_matches / (extra_courts + groups)`
+   - Assigns matches in round-robin fashion starting from the second match in each group
    - This maintains similar timeline progression for all groups
 
 3. **Court Sharing**
    - When there are more groups than courts, multiple groups share courts
    - Groups are distributed evenly across available courts
+
+### Example Court Assignment
+
+**Scenario**: 1 group with 45 matches, 2 courts available
+
+**Before (Old Logic)**: 
+- Court 1: 44 matches
+- Court 2: 1 match
+
+**After (New Logic)**:
+- Court 1: 23 matches (primary court gets first match + every other match)
+- Court 2: 22 matches (extra court gets remaining matches in round-robin)
 
 ### Elimination/Bracket Stage Court Assignment
 

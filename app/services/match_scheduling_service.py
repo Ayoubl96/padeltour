@@ -9,7 +9,11 @@ from app.models.tournament import (
     Tournament, TournamentGroupCouple, TournamentStage, TournamentGroup, 
     TournamentBracket, Match, TournamentCourt
 )
-from app.core.constants import MatchResultStatus, SchedulingPriority
+from app.core.constants import (
+    StageType, BracketType, ScoringType, WinCriteria, AssignmentMethod,
+    SchedulingPriority, TiebreakerOption, MatchResultStatus, MatchFormat,
+    DEFAULT_STAGE_CONFIG
+)
 
 
 class MatchSchedulingService:
@@ -319,33 +323,28 @@ class MatchSchedulingService:
                 
                 if num_courts > num_groups:
                     # We have extra courts that can be used for parallel play
-                    # Create a round-robin assignment for the extra courts
+                    # Create a better distribution algorithm
                     extra_courts = court_ids[num_groups:]
                     
-                    # Distribute some matches to extra courts for parallel play
-                    # Start with the groups that have the most matches
-                    groups_by_match_count = sorted(
-                        group_ids, 
-                        key=lambda g: len(groups_to_matches[g]),
-                        reverse=True
-                    )
+                    # Calculate how many matches each extra court should get
+                    total_matches = sum(len(groups_to_matches[g]) for g in group_ids)
+                    matches_per_extra_court = max(1, total_matches // (len(extra_courts) + num_groups))
                     
-                    # Create a round-robin assignment for extra courts
+                    # Distribute matches more evenly across extra courts
                     extra_court_index = 0
-                    for group_id in groups_by_match_count:
+                    for group_id in group_ids:
                         matches_in_group = groups_to_matches[group_id]
-                        # For each group, assign some matches to extra courts
-                        # to enable parallel play
-                        num_extra = min(len(extra_courts), len(matches_in_group) // 2)
                         
-                        if num_extra > 0:
-                            for i in range(num_extra):
-                                # Assign every other match to an extra court
-                                match_index = (i + 1) * 2  # Use even indices (2, 4, 6...)
-                                if match_index < len(matches_in_group):
-                                    # Assign to next extra court in rotation
-                                    extra_court = extra_courts[extra_court_index % len(extra_courts)]
-                                    matches_in_group[match_index].court_id = extra_court
+                        # Assign matches to extra courts in a round-robin fashion
+                        # Start from the second match to keep the first on the primary court
+                        for i in range(1, len(matches_in_group)):
+                            if extra_court_index < len(extra_courts):
+                                # Assign to extra court
+                                extra_court = extra_courts[extra_court_index % len(extra_courts)]
+                                matches_in_group[i].court_id = extra_court
+                                
+                                # Move to next extra court after assigning a certain number of matches
+                                if (i - 1) % matches_per_extra_court == matches_per_extra_court - 1:
                                     extra_court_index += 1
                 
                 # Assign remaining matches to their group's primary court
