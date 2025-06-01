@@ -2,7 +2,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.services.match_service import MatchService
-from app.schemas.match import MatchCreate, MatchUpdate, MatchRead
+from app.schemas.tournament import MatchCreate, MatchUpdate, MatchOut as MatchRead
 
 router = APIRouter()
 

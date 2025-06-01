@@ -14,7 +14,8 @@ from app.schemas.tournament import (
     TournamentGroupCoupleBase, TournamentGroupCoupleCreate, TournamentGroupCoupleOut,
     TournamentBracketBase, TournamentBracketCreate, TournamentBracketUpdate, TournamentBracketOut,
     MatchGameBase, MatchBase, MatchCreate, MatchUpdate, MatchOut,
-    GroupStandingsEntry, GroupStandings
+    GroupStandingsEntry, GroupStandings,
+    CoupleStatsBase, CoupleStatsOut, CoupleStatsUpdate, TournamentStandingsOut
 )
 from app.schemas.auth import Token, TokenData, RefreshRequest
 
@@ -64,5 +65,9 @@ __all__ = [
     "MatchUpdate",
     "MatchOut",
     "GroupStandingsEntry",
-    "GroupStandings"
+    "GroupStandings",
+    "CoupleStatsBase",
+    "CoupleStatsOut",
+    "CoupleStatsUpdate",
+    "TournamentStandingsOut"
 ] 

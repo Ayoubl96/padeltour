@@ -11,7 +11,7 @@ from app.models.tournament import (
 )
 from app.core.constants import MatchResultStatus
 from app.models.court import Court
-from app.schemas.match import MatchCreate, MatchUpdate
+from app.schemas.tournament import MatchCreate, MatchUpdate
 
 class MatchRepository(BaseRepository[Match, MatchCreate, MatchUpdate]):
     """Repository for match-related operations"""

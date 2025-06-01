@@ -5,7 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from app.models.tournament import Tournament
-from app.db.models.base import Base
+from app.db.database import Base
 
 # Generic type for database models
 T = TypeVar('T', bound=Base)

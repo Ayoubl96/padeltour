@@ -16,11 +16,13 @@ from app.core.constants import (
     DEFAULT_STAGE_CONFIG
 )
 from app.services.match_scheduling_service import MatchSchedulingService
+from app.services.couple_stats_service import CoupleStatsService
 
 
 class TournamentStagingService:
     def __init__(self, db: Session):
         self.db = db
+        self.couple_stats_service = CoupleStatsService(db)
 
     # ==============================
     # Stage Management Methods
@@ -996,6 +998,9 @@ class TournamentStagingService:
         # Automatically assign courts to the matches
         scheduling_service = MatchSchedulingService(self.db)
         matches = scheduling_service.auto_assign_courts(matches, tournament_id)
+        
+        # Initialize couple stats for all matches
+        self.couple_stats_service.initialize_couple_stats_for_matches(matches)
             
         return matches
 
@@ -1189,6 +1194,9 @@ class TournamentStagingService:
             # Automatically assign courts
             all_matches = scheduling_service.auto_assign_courts(all_matches, stage.tournament_id)
             
+            # Initialize couple stats for all matches
+            self.couple_stats_service.initialize_couple_stats_for_matches(all_matches)
+            
             return all_matches
                 
         elif stage.stage_type == StageType.ELIMINATION:
@@ -1210,7 +1218,12 @@ class TournamentStagingService:
                 self.db.refresh(bracket)
             
             # Use existing method to generate bracket matches
-            return self.generate_bracket_matches(bracket.id, company_id, couples)
+            matches = self.generate_bracket_matches(bracket.id, company_id, couples)
+            
+            # Initialize couple stats for all matches
+            self.couple_stats_service.initialize_couple_stats_for_matches(matches)
+            
+            return matches
         
         else:
             raise HTTPException(

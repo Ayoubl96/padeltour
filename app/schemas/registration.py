@@ -11,7 +11,7 @@ class CompanyRegistration(BaseModel):
     phone_number: str
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "email": "company@example.com",
                 "password": "securepassword123",
@@ -28,7 +28,7 @@ class EmailVerification(BaseModel):
     code: str
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "email": "company@example.com",
                 "code": "123456"
@@ -41,7 +41,7 @@ class ResendVerification(BaseModel):
     email: EmailStr
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "email": "company@example.com"
             }
@@ -55,7 +55,7 @@ class RegistrationInitiateResponse(BaseModel):
     expires_in_minutes: int
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "message": "Verification code sent to your email",
                 "email": "company@example.com",

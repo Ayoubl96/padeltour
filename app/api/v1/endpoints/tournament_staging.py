@@ -9,6 +9,7 @@ from app.db.database import get_db
 from app.models.company import Company
 from app.services.tournament_staging_service import TournamentStagingService
 from app.services.match_scheduling_service import MatchSchedulingService
+from app.services.couple_stats_service import CoupleStatsService
 from app.core.constants import StageType, BracketType, AssignmentMethod
 
 router = APIRouter()
@@ -307,9 +308,16 @@ def update_match(
     db: Session = Depends(get_db),
     current_company: Company = Depends(get_current_user)
 ):
+    """Update a match (including results) - this will automatically update couple statistics"""
+    from app.services.match_service import MatchService
+    
+    # Validate match ownership through scheduling service first
     scheduling_service = MatchSchedulingService(db)
-    update_data = match_data.dict(exclude_unset=True)
-    return scheduling_service.update_match(match_id, current_company.id, update_data)
+    match = scheduling_service.get_match_by_id(match_id, current_company.id)
+    
+    # Use MatchService to update the match (which includes couple stats updates)
+    match_service = MatchService(db)
+    return match_service.update_match(match_id, match_data)
 
 # Match generation and scheduling endpoints
 @router.post("/group/{group_id}/generate-matches", response_model=List[schemas.MatchOut])
@@ -453,4 +461,193 @@ def generate_bracket_matches(
     matches = staging_service.generate_stage_matches(stage_id, current_company.id, couples)
     
     # Return only the matches for this specific bracket
-    return scheduling_service.get_bracket_matches(bracket_id, current_company.id) 
+    return scheduling_service.get_bracket_matches(bracket_id, current_company.id)
+
+# Couple Stats endpoints
+@router.get("/tournament/{tournament_id}/stats", response_model=List[schemas.CoupleStatsOut])
+def get_tournament_stats(
+    tournament_id: int,
+    group_id: Optional[int] = Query(None, description="Filter by group ID"),
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    """Get couple statistics for a tournament"""
+    couple_stats_service = CoupleStatsService(db)
+    stats = couple_stats_service.get_tournament_stats(tournament_id, group_id)
+    
+    # Convert to output format and add position
+    result = []
+    for i, stat in enumerate(stats, 1):
+        stat_out = schemas.CoupleStatsOut.from_orm(stat)
+        stat_out.position = i
+        result.append(stat_out)
+    
+    return result
+
+@router.get("/couple/{couple_id}/tournament/{tournament_id}/stats", response_model=schemas.CoupleStatsOut)
+def get_couple_stats(
+    couple_id: int,
+    tournament_id: int,
+    group_id: Optional[int] = Query(None, description="Filter by group ID"),
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    """Get statistics for a specific couple in a tournament"""
+    couple_stats_service = CoupleStatsService(db)
+    stats = couple_stats_service.get_couple_stats(couple_id, tournament_id, group_id)
+    
+    if not stats:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Couple stats not found"
+        )
+    
+    return schemas.CoupleStatsOut.from_orm(stats)
+
+@router.post("/tournament/{tournament_id}/stats/recalculate", status_code=status.HTTP_200_OK)
+def recalculate_tournament_stats(
+    tournament_id: int,
+    group_id: Optional[int] = Query(None, description="Recalculate for specific group only"),
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    """Recalculate all couple statistics for a tournament"""
+    from app.services.match_service import MatchService
+    
+    match_service = MatchService(db)
+    match_service.recalculate_tournament_stats(tournament_id, group_id)
+    
+    return {"message": "Tournament statistics recalculated successfully"}
+
+@router.post("/tournament/{tournament_id}/stats/initialize", status_code=status.HTTP_200_OK)
+def initialize_missing_couple_stats(
+    tournament_id: int,
+    group_id: Optional[int] = Query(None, description="Initialize for specific group only"),
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    """Initialize missing couple statistics for a tournament (useful for existing tournaments)"""
+    from app.services.match_service import MatchService
+    
+    match_service = MatchService(db)
+    result = match_service.ensure_couple_stats_exist(tournament_id, group_id)
+    
+    return {
+        "message": "Couple statistics initialized successfully",
+        "details": result
+    }
+
+@router.get("/group/{group_id}/standings", response_model=schemas.GroupStandings)
+def get_group_standings_with_stats(
+    group_id: int,
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    """Get group standings with detailed couple statistics"""
+    staging_service = TournamentStagingService(db)
+    couple_stats_service = CoupleStatsService(db)
+    
+    # Get the group
+    group = staging_service.get_group_by_id(group_id, current_company.id)
+    
+    # Get couple stats for this group
+    stats = couple_stats_service.get_tournament_stats(group.stage.tournament_id, group_id)
+    
+    # Sort by ranking criteria
+    sorted_stats = sorted(
+        stats,
+        key=lambda s: (
+            s.total_points,
+            s.games_won - s.games_lost,
+            s.games_won,
+            s.matches_won
+        ),
+        reverse=True
+    )
+    
+    # Convert to standings entries
+    standings_entries = []
+    for i, stat in enumerate(sorted_stats, 1):
+        entry = schemas.GroupStandingsEntry(
+            couple_id=stat.couple_id,
+            couple_name=stat.couple.name if stat.couple else f"Couple {stat.couple_id}",
+            matches_played=stat.matches_played,
+            matches_won=stat.matches_won,
+            matches_lost=stat.matches_lost,
+            matches_drawn=stat.matches_drawn,
+            games_won=stat.games_won,
+            games_lost=stat.games_lost,
+            total_points=stat.total_points,
+            position=i
+        )
+        standings_entries.append(entry)
+    
+    return schemas.GroupStandings(
+        group_id=group_id,
+        group_name=group.name,
+        standings=standings_entries
+    )
+
+@router.get("/tournament/{tournament_id}/standings", response_model=schemas.TournamentStandingsOut)
+def get_tournament_standings(
+    tournament_id: int,
+    group_id: Optional[int] = Query(None, description="Filter by group ID"),
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    """Get complete tournament standings"""
+    from app.models.tournament import Tournament, TournamentGroup
+    
+    couple_stats_service = CoupleStatsService(db)
+    
+    # Get tournament
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if not tournament:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tournament not found"
+        )
+    
+    if tournament.company_id != current_company.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unauthorized access to this tournament"
+        )
+    
+    # Get group info if specified
+    group_name = None
+    if group_id:
+        group = db.query(TournamentGroup).filter(TournamentGroup.id == group_id).first()
+        if group:
+            group_name = group.name
+    
+    # Get stats
+    stats = couple_stats_service.get_tournament_stats(tournament_id, group_id)
+    
+    # Sort by ranking criteria
+    sorted_stats = sorted(
+        stats,
+        key=lambda s: (
+            s.total_points,
+            s.games_won - s.games_lost,
+            s.games_won,
+            s.matches_won
+        ),
+        reverse=True
+    )
+    
+    # Convert to output format with positions
+    stats_out = []
+    for i, stat in enumerate(sorted_stats, 1):
+        stat_out = schemas.CoupleStatsOut.from_orm(stat)
+        stat_out.position = i
+        stats_out.append(stat_out)
+    
+    return schemas.TournamentStandingsOut(
+        tournament_id=tournament_id,
+        tournament_name=tournament.name,
+        group_id=group_id,
+        group_name=group_name,
+        stats=stats_out,
+        last_updated=datetime.now()
+    ) 

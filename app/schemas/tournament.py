@@ -2,6 +2,7 @@ from typing import Dict
 from app.schemas.base import *
 from app.schemas.player import PlayerOutFull
 from app.schemas.court import CourtBase
+from pydantic import validator
 
 
 class TournamentBase(BaseModel):
@@ -14,7 +15,7 @@ class TournamentBase(BaseModel):
     full_description: Optional[Any] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TournamentOut(TournamentBase):
@@ -23,7 +24,7 @@ class TournamentOut(TournamentBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TournamentUpdate(BaseModel):
@@ -36,7 +37,7 @@ class TournamentUpdate(BaseModel):
     full_description: Optional[Any] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Tournament Stage Schemas
@@ -66,7 +67,7 @@ class TournamentStageOut(TournamentStageBase):
     deleted_at: Optional[datetime] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Tournament Group Schemas
@@ -90,7 +91,7 @@ class TournamentGroupOut(TournamentGroupBase):
     deleted_at: Optional[datetime] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Tournament Group Couple Schemas
@@ -110,7 +111,7 @@ class TournamentGroupCoupleOut(TournamentGroupCoupleBase):
     deleted_at: Optional[datetime] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Tournament Bracket Schemas
@@ -134,7 +135,7 @@ class TournamentBracketOut(TournamentBracketBase):
     deleted_at: Optional[datetime] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TournamentPlayerBase(BaseModel):
@@ -177,7 +178,7 @@ class TournamentCoupleOut(BaseModel):
     second_player: Optional[PlayerOutFull] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TournamentCoupleOutSimple(BaseModel):
@@ -191,7 +192,7 @@ class TournamentCoupleOutSimple(BaseModel):
     name: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TournamentCoupleUpdate(BaseModel):
@@ -255,7 +256,7 @@ class MatchOut(MatchBase):
     court: Optional[CourtBase] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Tournament Court Schemas
@@ -277,7 +278,7 @@ class TournamentCourtOut(BaseModel):
     court: Optional[CourtBase] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class TournamentCourtUpdate(BaseModel):
@@ -302,4 +303,64 @@ class GroupStandingsEntry(BaseModel):
 class GroupStandings(BaseModel):
     group_id: int
     group_name: str
-    standings: List[GroupStandingsEntry] 
+    standings: List[GroupStandingsEntry]
+
+
+# Couple Stats Schemas
+class CoupleStatsBase(BaseModel):
+    tournament_id: int
+    couple_id: int
+    group_id: Optional[int] = None
+    matches_played: int = 0
+    matches_won: int = 0
+    matches_lost: int = 0
+    matches_drawn: int = 0
+    games_won: int = 0
+    games_lost: int = 0
+    total_points: int = 0
+
+
+class CoupleStatsOut(CoupleStatsBase):
+    id: int
+    last_updated: datetime
+    couple: Optional[TournamentCoupleOutSimple] = None
+    games_diff: Optional[int] = None
+    win_percentage: Optional[float] = None
+    position: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+    
+    @validator('games_diff', always=True)
+    def calculate_games_diff(cls, v, values):
+        return values.get('games_won', 0) - values.get('games_lost', 0)
+    
+    @validator('win_percentage', always=True)
+    def calculate_win_percentage(cls, v, values):
+        matches_played = values.get('matches_played', 0)
+        if matches_played == 0:
+            return 0.0
+        matches_won = values.get('matches_won', 0)
+        return round((matches_won / matches_played) * 100, 2)
+
+
+class CoupleStatsUpdate(BaseModel):
+    matches_played: Optional[int] = None
+    matches_won: Optional[int] = None
+    matches_lost: Optional[int] = None
+    matches_drawn: Optional[int] = None
+    games_won: Optional[int] = None
+    games_lost: Optional[int] = None
+    total_points: Optional[int] = None
+
+
+class TournamentStandingsOut(BaseModel):
+    tournament_id: int
+    tournament_name: str
+    group_id: Optional[int] = None
+    group_name: Optional[str] = None
+    stats: List[CoupleStatsOut]
+    last_updated: datetime
+
+    class Config:
+        from_attributes = True 
