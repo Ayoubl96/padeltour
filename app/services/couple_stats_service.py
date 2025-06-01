@@ -96,18 +96,17 @@ class CoupleStatsService:
         
         couple2_stats = couple1_stats.copy()
         
-        # Count games won/lost
+        # Count individual games won/lost from each set
         for game in match.games:
             if isinstance(game, dict):
                 couple1_score = game.get("couple1_score", 0)
                 couple2_score = game.get("couple2_score", 0)
                 
-                if couple1_score > couple2_score:
-                    couple1_stats["games_won"] += 1
-                    couple2_stats["games_lost"] += 1
-                elif couple2_score > couple1_score:
-                    couple2_stats["games_won"] += 1
-                    couple1_stats["games_lost"] += 1
+                # Add the actual game scores, not just count the set winner
+                couple1_stats["games_won"] += couple1_score
+                couple1_stats["games_lost"] += couple2_score
+                couple2_stats["games_won"] += couple2_score
+                couple2_stats["games_lost"] += couple1_score
         
         # Determine match winner and assign points
         if match.winner_couple_id == match.couple1_id:
