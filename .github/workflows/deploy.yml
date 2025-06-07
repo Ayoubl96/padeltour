@@ -84,7 +84,7 @@ jobs:
         curl -f http://localhost:8000/ || exit 1
         
         # Test docs endpoint
-        curl -f http://localhost:8000/api/docs || exit 1
+        curl -f http://localhost:8000/docs || exit 1
         
         echo "✅ API endpoints are working"
 
