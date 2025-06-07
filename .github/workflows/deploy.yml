@@ -93,10 +93,6 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
-    env:
-      HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-      HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
-    
     steps:
     - uses: actions/checkout@v4
       with:
@@ -104,33 +100,41 @@ jobs:
     
     - name: Install Heroku CLI
       run: |
-        curl https://cli-assets.heroku.com/install.sh | sh
+        curl https://cli-assets.heroku.com/install-ubuntu.sh | sh
         
-    - name: Add Heroku to PATH
+    - name: Setup Heroku authentication
+      env:
+        HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+        HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
       run: |
-        echo "/usr/local/bin" >> $GITHUB_PATH
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        # Create netrc file for authentication
+        cat > ~/.netrc << EOF
+        machine api.heroku.com
+          login $HEROKU_EMAIL
+          password $HEROKU_API_KEY
+        machine git.heroku.com
+          login $HEROKU_EMAIL
+          password $HEROKU_API_KEY
+        EOF
+        chmod 600 ~/.netrc
         
-    - name: Verify Heroku CLI installation
-      run: |
-        which heroku || echo "Heroku not in PATH, trying alternative paths"
-        /usr/local/bin/heroku --version || echo "Heroku not in /usr/local/bin"
-        ls -la /usr/local/bin/ | grep heroku || echo "No heroku in /usr/local/bin"
+        # Set Heroku API key as environment variable
+        echo "HEROKU_API_KEY=$HEROKU_API_KEY" >> $GITHUB_ENV
         
-    - name: Login to Heroku
-      run: |
-        echo "Logging in to Heroku..."
-        heroku auth:whoami || echo "Not authenticated yet"
-        
-    - name: Add Heroku remote
-      run: |
-        heroku git:remote -a api-tournme
+        # Verify authentication
+        heroku auth:whoami
         
     - name: Deploy to Heroku
+      env:
+        HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
       run: |
+        # Add Heroku remote and push
+        heroku git:remote -a api-tournme
         git push heroku main
         
     - name: Run migrations on Heroku
+      env:
+        HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
       run: |
         heroku run alembic upgrade head --app api-tournme
         
