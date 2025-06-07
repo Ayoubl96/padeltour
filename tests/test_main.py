@@ -13,10 +13,10 @@ def test_root_endpoint():
 
 def test_docs_endpoint():
     """Test that API documentation is accessible"""
-    response = client.get("/api/docs")
+    response = client.get("/docs")
     assert response.status_code == 200
 
 def test_openapi_endpoint():
     """Test that OpenAPI spec is accessible"""
-    response = client.get("/api/openapi.json")
+    response = client.get("/openapi.json")
     assert response.status_code == 200 
