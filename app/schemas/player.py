@@ -37,7 +37,7 @@ class PlayerCompany(BaseModel):
 
 class PlayerPlaytomic(BaseModel):
     playtomic_id: int
-    name: str
+    gender: int
     
     class Config:
         from_attributes = True 

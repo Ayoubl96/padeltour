@@ -38,7 +38,7 @@ def create_player_from_playtomic(
     
     try:
         # Get player data from Playtomic
-        playtomic_data = player_service.get_playtomic_player_data(player.user_id)
+        playtomic_data = player_service.get_playtomic_player_data(player.playtomic_id)
         
         # Create or update player
         result = player_service.create_player_from_playtomic(
