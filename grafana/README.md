@@ -6,16 +6,19 @@ This folder contains everything needed to set up comprehensive monitoring for yo
 
 ```
 grafana/
-├── README.md                    # This file
-├── dashboards/                  # Ready-to-import dashboard files
-│   ├── debug.json              # Start here - tests basic connection
-│   ├── simple.json             # Basic monitoring dashboard
-│   ├── standard.json           # Comprehensive monitoring 
-│   └── advanced.json           # Full observability (requires enhanced middleware)
-├── docs/                       # Documentation
-│   ├── setup-guide.md          # Complete setup instructions
-│   └── troubleshooting.md      # Solutions for common issues
-└── enhanced_middleware.py      # Optional: Enhanced logging for advanced metrics
+├── README.md                         # This file
+├── dashboards/                       # Ready-to-import dashboard files
+│   ├── debug.json                   # Start here - tests basic connection
+│   ├── simple.json                  # Basic monitoring dashboard
+│   ├── standard.json                # Comprehensive monitoring 
+│   ├── advanced.json                # Full observability (requires enhanced middleware)
+│   └── status-code-monitoring.json  # 🆕 HTTP status code analysis
+├── docs/                            # Documentation
+│   ├── setup-guide.md               # Complete setup instructions
+│   ├── troubleshooting.md           # Solutions for common issues
+│   └── status-code-guide.md         # 🆕 Status code monitoring guide
+├── enhanced_middleware.py           # Optional: Enhanced logging v1
+└── enhanced_middleware_v2.py        # 🆕 Enhanced logging with status tracking
 ```
 
 ## 🚀 Quick Start
@@ -31,6 +34,9 @@ Import `dashboards/debug.json` to verify your logs are accessible:
 - **Beginner**: `simple.json` - Basic request/error monitoring
 - **Standard**: `standard.json` - Comprehensive API monitoring  
 - **Advanced**: `advanced.json` - Full performance analytics
+- **🆕 Status Codes**: `status-code-monitoring.json` - HTTP status analysis
+
+**💡 Recommended**: Import `status-code-monitoring.json` - it works with your current setup and provides essential API health metrics!
 
 ### 3. Import Process
 1. Copy the **entire JSON content** from your chosen dashboard file
@@ -65,6 +71,15 @@ Import `dashboards/debug.json` to verify your logs are accessible:
 - Slow request detection
 - Status code categorization
 - Comprehensive error analysis
+
+### Status Code Monitoring Dashboard (`status-code-monitoring.json`) 🆕
+- **Error rate percentages** (overall, server errors, client errors)
+- **Success rate tracking** for SLA monitoring
+- **Status code distribution** (200, 404, 500, etc.)
+- **Status class breakdown** (2xx, 4xx, 5xx)
+- **Error trends over time**
+- **Error rate by endpoint**
+- **Recent HTTP error logs**
 
 ## 🔧 Enhanced Middleware (Optional)
 
