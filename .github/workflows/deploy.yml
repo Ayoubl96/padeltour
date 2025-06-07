@@ -98,6 +98,25 @@ jobs:
       with:
         fetch-depth: 0
     
+    - name: Debug secrets availability
+      run: |
+        echo "Checking if secrets are available..."
+        echo "HEROKU_API_KEY length: ${#HEROKU_API_KEY}"
+        echo "HEROKU_EMAIL length: ${#HEROKU_EMAIL}"
+        if [ -z "$HEROKU_API_KEY" ]; then
+          echo "❌ HEROKU_API_KEY is empty or not set"
+        else
+          echo "✅ HEROKU_API_KEY is set (length: ${#HEROKU_API_KEY})"
+        fi
+        if [ -z "$HEROKU_EMAIL" ]; then
+          echo "❌ HEROKU_EMAIL is empty or not set"
+        else
+          echo "✅ HEROKU_EMAIL is set: $HEROKU_EMAIL"
+        fi
+      env:
+        HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+        HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
+    
     - name: Install Heroku CLI
       run: |
         curl https://cli-assets.heroku.com/install-ubuntu.sh | sh
@@ -107,6 +126,19 @@ jobs:
         HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
         HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
       run: |
+        # Debug: Check if environment variables are available
+        echo "Setting up authentication..."
+        echo "API Key length: ${#HEROKU_API_KEY}"
+        echo "Email: $HEROKU_EMAIL"
+        
+        # Fail early if secrets are not available
+        if [ -z "$HEROKU_API_KEY" ] || [ -z "$HEROKU_EMAIL" ]; then
+          echo "❌ ERROR: Heroku credentials are not available!"
+          echo "Please check that you have added HEROKU_API_KEY and HEROKU_EMAIL secrets to your repository."
+          echo "Go to: https://github.com/Ayoubl96/padeltour/settings/secrets/actions"
+          exit 1
+        fi
+        
         # Create netrc file for authentication
         cat > ~/.netrc << EOF
         machine api.heroku.com
@@ -117,9 +149,6 @@ jobs:
           password $HEROKU_API_KEY
         EOF
         chmod 600 ~/.netrc
-        
-        # Set Heroku API key as environment variable
-        echo "HEROKU_API_KEY=$HEROKU_API_KEY" >> $GITHUB_ENV
         
         # Verify authentication
         heroku auth:whoami
