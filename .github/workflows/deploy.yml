@@ -93,6 +93,10 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
+    env:
+      HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+      HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
+    
     steps:
     - uses: actions/checkout@v4
       with:
@@ -101,13 +105,22 @@ jobs:
     - name: Install Heroku CLI
       run: |
         curl https://cli-assets.heroku.com/install.sh | sh
+        
+    - name: Add Heroku to PATH
+      run: |
         echo "/usr/local/bin" >> $GITHUB_PATH
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        
+    - name: Verify Heroku CLI installation
+      run: |
+        which heroku || echo "Heroku not in PATH, trying alternative paths"
+        /usr/local/bin/heroku --version || echo "Heroku not in /usr/local/bin"
+        ls -la /usr/local/bin/ | grep heroku || echo "No heroku in /usr/local/bin"
         
     - name: Login to Heroku
-      env:
-        HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
       run: |
-        echo $HEROKU_API_KEY | heroku auth:token
+        echo "Logging in to Heroku..."
+        heroku auth:whoami || echo "Not authenticated yet"
         
     - name: Add Heroku remote
       run: |
@@ -118,8 +131,6 @@ jobs:
         git push heroku main
         
     - name: Run migrations on Heroku
-      env:
-        HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
       run: |
         heroku run alembic upgrade head --app api-tournme
         
