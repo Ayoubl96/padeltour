@@ -101,48 +101,66 @@ class GrafanaCloudLogger:
         Send a batch of logs to Loki
         """
         try:
+            if not batch:
+                return
+                
             # Prepare Loki payload
             streams = []
             
             # Group logs by labels
             streams_dict = {}
             for entry in batch:
-                # Extract labels from the log line
-                log_data = json.loads(entry["line"])
-                
-                # Create labels for Loki
-                labels = {
-                    "app": "padeltour",
-                    "level": log_data.get("level", "info"),
-                    "logger": log_data.get("logger", "unknown"),
-                    "environment": os.getenv("ENVIRONMENT", "production")
-                }
-                
-                # Add optional labels
-                if "event_type" in log_data:
-                    labels["event_type"] = log_data["event_type"]
-                
-                if "endpoint" in log_data:
-                    labels["endpoint"] = log_data["endpoint"]
-                
-                # Create label string
-                label_str = "{" + ",".join([f'{k}="{v}"' for k, v in labels.items()]) + "}"
-                
-                if label_str not in streams_dict:
-                    streams_dict[label_str] = []
-                
-                streams_dict[label_str].append([entry["timestamp"], entry["line"]])
+                try:
+                    # Extract labels from the log line
+                    log_data = json.loads(entry["line"])
+                    
+                    # Create labels for Loki (ensure all values are strings)
+                    labels = {
+                        "app": "padeltour",
+                        "level": str(log_data.get("level", "info")).lower(),
+                        "logger": str(log_data.get("logger", "unknown")),
+                        "environment": str(os.getenv("ENVIRONMENT", "production"))
+                    }
+                    
+                    # Add optional labels (sanitize values for Loki)
+                    if "event_type" in log_data:
+                        labels["event_type"] = str(log_data["event_type"]).replace(" ", "_").replace("/", "_")
+                    
+                    if "endpoint" in log_data:
+                        # Clean endpoint for use as label (remove query params, etc.)
+                        endpoint = str(log_data["endpoint"]).split('?')[0]
+                        # Replace problematic characters for Loki labels
+                        endpoint = endpoint.replace("/", "_").replace("-", "_")
+                        labels["endpoint"] = endpoint
+                    
+                    # Create a hashable key from labels for grouping
+                    label_key = tuple(sorted(labels.items()))
+                    
+                    if label_key not in streams_dict:
+                        streams_dict[label_key] = []
+                    
+                    streams_dict[label_key].append([entry["timestamp"], entry["line"]])
+                    
+                except Exception as log_error:
+                    print(f"Error processing log entry: {log_error}, entry: {entry}")
+                    continue
             
             # Convert to Loki format
             streams = [
                 {
-                    "stream": json.loads(label_str.replace("=", ":")),
+                    "stream": dict(label_key),  # Convert tuple back to dict
                     "values": values
                 }
-                for label_str, values in streams_dict.items()
+                for label_key, values in streams_dict.items()
             ]
             
             payload = {"streams": streams}
+            
+            # Debug: Print payload structure (only in development)
+            if os.getenv("DEBUG_GRAFANA") == "true":
+                print(f"Sending {len(streams)} streams to Grafana")
+                for i, stream in enumerate(streams[:2]):  # Only show first 2 streams
+                    print(f"Stream {i}: {stream['stream']}")
             
             # Send to Loki
             response = requests.post(
@@ -153,11 +171,22 @@ class GrafanaCloudLogger:
                 timeout=10
             )
             
-            if response.status_code != 204:
+            if response.status_code == 204:
+                # Success
+                if os.getenv("DEBUG_GRAFANA") == "true":
+                    print(f"Successfully sent {len(batch)} logs to Grafana")
+            else:
                 print(f"Failed to send logs to Grafana: {response.status_code} - {response.text}")
+                # Print the payload for debugging
+                print(f"Payload that failed: {json.dumps(payload, indent=2)[:500]}...")
                 
         except Exception as e:
             print(f"Error sending logs to Grafana: {e}")
+            # Print more context for debugging
+            print(f"Batch size: {len(batch) if batch else 0}")
+            if hasattr(e, '__traceback__'):
+                import traceback
+                print(f"Traceback: {traceback.format_exc()}")
 
 
 # Global instance
