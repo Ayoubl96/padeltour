@@ -14,8 +14,8 @@ import sys
 # access to the values within the .ini file in use.
 config = context.config
 # Override the host with the correct one
-db_host = "postgres.padeltour.orb.local"
-config.set_main_option("sqlalchemy.url", f'postgresql://{settings.db_user}:{settings.db_password}@{db_host}/{settings.db_name}')
+# db_host = "postgres.padeltour.orb.local"
+config.set_main_option("sqlalchemy.url", f'postgresql://{settings.db_user}:{settings.db_password}@{settings.db_host}/{settings.db_name}')
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
