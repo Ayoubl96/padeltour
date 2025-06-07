@@ -1,0 +1,129 @@
+name: Deploy to Heroku
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Set up test environment variables
+      run: |
+        echo "DB_HOST=localhost" >> $GITHUB_ENV
+        echo "DB_USER=test_user" >> $GITHUB_ENV
+        echo "DB_PASSWORD=test_password" >> $GITHUB_ENV
+        echo "DB_NAME=test_db" >> $GITHUB_ENV
+        echo "SECRET_KEY=test-secret-key-for-github-actions" >> $GITHUB_ENV
+        echo "ALGORITHM=HS256" >> $GITHUB_ENV
+        echo "ACCESS_TOKEN_EXP_MINUTES=30" >> $GITHUB_ENV
+        echo "SUPABASE_URL=https://test.supabase.co" >> $GITHUB_ENV
+        echo "SUPABASE_KEY=test-key" >> $GITHUB_ENV
+        echo "SUPABASE_BUCKET=test-bucket" >> $GITHUB_ENV
+        echo "PLAYTOMIC_API_URL=https://api.playtomic.io/" >> $GITHUB_ENV
+        echo "PLAYTOMIC_EMAIL=test@test.com" >> $GITHUB_ENV
+        echo "PLAYTOMIC_PASSWORD=test-password" >> $GITHUB_ENV
+        echo "LOOPS_API_KEY=test-loops-key" >> $GITHUB_ENV
+        echo "LOOPS_VERIFICATION_TEMPLATE_ID=test-template-id" >> $GITHUB_ENV
+        
+    - name: Run database migrations
+      run: |
+        alembic upgrade head
+        
+    - name: Run tests
+      run: |
+        python -m pytest tests/ -v --tb=short
+        
+    - name: Test API endpoints
+      run: |
+        # Start the server in background
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+        
+        # Wait for server to start
+        sleep 10
+        
+        # Test root endpoint
+        curl -f http://localhost:8000/ || exit 1
+        
+        # Test docs endpoint
+        curl -f http://localhost:8000/api/docs || exit 1
+        
+        echo "✅ API endpoints are working"
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Deploy to Heroku
+      uses: akhileshns/heroku-deploy@v3.13.15
+      with:
+        heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
+        heroku_app_name: "api-tournme"
+        heroku_email: ${{ secrets.HEROKU_EMAIL }}
+        
+    - name: Run migrations on Heroku
+      run: |
+        # Install Heroku CLI
+        curl https://cli-assets.heroku.com/install.sh | sh
+        
+        # Login using API key
+        echo ${{ secrets.HEROKU_API_KEY }} | heroku auth:token
+        
+        # Run migrations
+        heroku run alembic upgrade head --app api-tournme
+        
+    - name: Verify deployment
+      run: |
+        # Test if the API is responding
+        sleep 30  # Wait for deployment to complete
+        response=$(curl -s -o /dev/null -w "%{http_code}" https://api-tournme-22f05149d967.herokuapp.com/)
+        if [ $response -eq 200 ]; then
+          echo "✅ Deployment successful - API is responding"
+        else
+          echo "❌ Deployment verification failed - API returned $response"
+          exit 1
+        fi 
