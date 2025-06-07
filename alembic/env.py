@@ -13,9 +13,14 @@ import sys
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-# Override the host with the correct one
-db_host = "postgres.padeltour.orb.local"
-config.set_main_option("sqlalchemy.url", f'postgresql://{settings.db_user}:{settings.db_password}@{db_host}/{settings.db_name}')
+
+# Use the correct database host from environment variables
+# Add SSL mode for production Supabase
+db_url = f'postgresql://{settings.db_user}:{settings.db_password}@{settings.db_host}:5432/{settings.db_name}'
+if settings.db_host.endswith('.supabase.co'):
+    db_url += '?sslmode=require'
+
+config.set_main_option("sqlalchemy.url", db_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
