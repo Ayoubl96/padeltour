@@ -63,6 +63,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                     "request_id": request_id,
                     "method": method,
                     "endpoint": url,
+                    "status_code": 500,
                     "error": error_message,
                     "event_type": "request_error"
                 },
@@ -84,18 +85,29 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 "method": method,
                 "endpoint": url,
                 "status_code": status_code,
-                "duration_ms": duration,  # Changed from 'duration' to 'duration_ms'
+                "duration_ms": duration,
                 "client_ip": client_ip,
-                "event_type": "request_complete"
+                "event_type": "request_complete",
+                # Add debugging fields
+                "has_response": response is not None,
+                "processing_time": round(time.time() - start_time, 3)
             }
             
             if error_message:
                 log_extra["error"] = error_message
-                
-            if log_level == "info":
-                logger.info(log_message, extra=log_extra)
+                log_extra["had_exception"] = True
             else:
-                logger.error(log_message, extra=log_extra)
+                log_extra["had_exception"] = False
+                
+            # Always log completion (even for errors) with consistent level for request_complete events
+            logger.info(log_message, extra=log_extra)
+            
+            # Also log errors separately with ERROR level for alerting
+            if status_code >= 400:
+                logger.error(f"HTTP {status_code} error: {method} {url}", extra={
+                    **log_extra,
+                    "event_type": "http_error"
+                })
         
         return response
 

@@ -39,7 +39,9 @@ class JSONFormatter(logging.Formatter):
         if hasattr(record, 'status_code'):
             log_entry['status_code'] = record.status_code
             
-        if hasattr(record, 'duration'):
+        if hasattr(record, 'duration_ms'):
+            log_entry['duration_ms'] = record.duration_ms
+        elif hasattr(record, 'duration'):
             log_entry['duration_ms'] = record.duration
         
         # Add exception info if present
