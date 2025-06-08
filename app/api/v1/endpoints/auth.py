@@ -9,6 +9,8 @@ from app.models.company import Company
 from app.utils.security import verify_password
 from app.utils.logging_utils import log_user_action, log_error, log_database_operation
 from app.core.logging_config import get_logger
+# Enhanced business event logging (optional)
+from grafana.enhanced_middleware_v2 import log_enhanced_business_event
 
 router = APIRouter()
 logger = get_logger("padeltour.auth")
@@ -71,6 +73,18 @@ def login(
             user_id=user.id,
             request=request,
             extra_data={"username": user_credentials.username}
+        )
+        
+        # Enhanced business event logging for better analytics
+        log_enhanced_business_event(
+            "user_login",
+            user_id=user.id,
+            company_id=user.id,  # Assuming company is the user in this case
+            additional_data={
+                "username": user_credentials.username,
+                "login_method": "password"
+            },
+            request=request
         )
 
         return {

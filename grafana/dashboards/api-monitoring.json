@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": null,
+  "id": 2,
   "links": [],
   "panels": [
     {
@@ -37,24 +37,25 @@
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               },
               {
                 "color": "yellow",
-                "value": 1
+                "value": 100
               },
               {
                 "color": "red",
-                "value": 5
+                "value": 500
               }
             ]
           },
-          "unit": "percent"
-        }
+          "unit": "reqps"
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 6,
-        "w": 4,
+        "w": 6,
         "x": 0,
         "y": 0
       },
@@ -64,6 +65,7 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -71,7 +73,9 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
       "pluginVersion": "12.1.0",
       "targets": [
@@ -82,12 +86,12 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "(sum(rate({logger=\"padeltour.middleware\"} | json | status_code >= 400 [5m])) / sum(rate({logger=\"padeltour.middleware\"} | json | status_code > 0 [5m]))) * 100",
+          "expr": "sum(rate(count_over_time({app=\"padeltour\", event_type=\"request_start\"} [1m])))",
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "Error Rate %",
+      "title": "Request Rate",
       "type": "stat"
     },
     {
@@ -106,7 +110,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               },
               {
                 "color": "yellow",
@@ -114,17 +118,18 @@
               },
               {
                 "color": "red",
-                "value": 5
+                "value": 10
               }
             ]
           },
-          "unit": "percent"
-        }
+          "unit": "short"
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 6,
-        "w": 4,
-        "x": 4,
+        "w": 6,
+        "x": 6,
         "y": 0
       },
       "id": 2,
@@ -133,6 +138,7 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -140,7 +146,9 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
       "pluginVersion": "12.1.0",
       "targets": [
@@ -151,12 +159,12 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "(sum(rate({logger=\"padeltour.middleware\"} | json | status_code >= 500 [5m])) / sum(rate({logger=\"padeltour.middleware\"} | json | status_code > 0 [5m]))) * 100",
+          "expr": "sum(rate(count_over_time({app=\"padeltour\", event_type=\"http_error\"} [1m])))",
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "Server Error Rate %",
+      "title": "Error Rate",
       "type": "stat"
     },
     {
@@ -174,26 +182,27 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
-                "value": null
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "yellow",
-                "value": 95
+                "value": 500
               },
               {
-                "color": "green",
-                "value": 98
+                "color": "red",
+                "value": 1000
               }
             ]
           },
-          "unit": "percent"
-        }
+          "unit": "ms"
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 6,
-        "w": 4,
-        "x": 8,
+        "w": 6,
+        "x": 12,
         "y": 0
       },
       "id": 3,
@@ -202,6 +211,7 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -209,7 +219,9 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
       "pluginVersion": "12.1.0",
       "targets": [
@@ -220,12 +232,12 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "(sum(rate({logger=\"padeltour.middleware\"} | json | status_code < 400 [5m])) / sum(rate({logger=\"padeltour.middleware\"} | json | status_code > 0 [5m]))) * 100",
+          "expr": "avg(avg_over_time({app=\"padeltour\", event_type=\"request_complete\"} | json | unwrap duration_ms [5m]))",
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "Success Rate %",
+      "title": "Avg Response Time",
       "type": "stat"
     },
     {
@@ -238,31 +250,48 @@
           "color": {
             "mode": "thresholds"
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "text": "DOWN"
+                },
+                "1": {
+                  "text": "HEALTHY"
+                }
+              },
+              "type": "value"
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
+                "color": "red",
+                "value": 0
+              },
+              {
                 "color": "green",
-                "value": null
+                "value": 1
               }
             ]
-          },
-          "unit": "short"
-        }
+          }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 6,
-        "w": 4,
-        "x": 12,
+        "w": 6,
+        "x": 18,
         "y": 0
       },
       "id": 4,
       "options": {
-        "colorMode": "value",
+        "colorMode": "background",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -270,7 +299,9 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
       "pluginVersion": "12.1.0",
       "targets": [
@@ -281,75 +312,13 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum(rate({logger=\"padeltour.middleware\"} | json | status_code > 0 [5m])) * 300",
+          "expr": "count(count_over_time({app=\"padeltour\", event_type=\"request_start\"} [2m]))",
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "Total Requests/5m",
+      "title": "API Health",
       "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "grafanacloud-logs"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "vis": false
-            }
-          },
-          "mappings": []
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 6
-      },
-      "id": 5,
-      "options": {
-        "legend": {
-          "displayMode": "visible",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "pieType": "pie",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "grafanacloud-logs"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "sum by (status_code) (count_over_time({logger=\"padeltour.middleware\"} | json | status_code > 0 [5m]))",
-          "queryType": "range",
-          "refId": "A"
-        }
-      ],
-      "title": "Status Code Distribution",
-      "type": "piechart"
     },
     {
       "datasource": {
@@ -363,17 +332,20 @@
           },
           "custom": {
             "axisBorderShow": false,
+            "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
               "tooltip": false,
-              "vis": false
+              "vis": false,
+              "viz": false
             },
             "insertNulls": false,
             "lineInterpolation": "linear",
@@ -398,12 +370,101 @@
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               }
             ]
           },
-          "unit": "short"
+          "unit": "reqps"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Errors"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
         }
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "grafanacloud-logs"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum(rate(count_over_time({app=\"padeltour\", event_type=\"request_start\"} [1m])))",
+          "legendFormat": "Requests",
+          "queryType": "range",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "grafanacloud-logs"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum(rate(count_over_time({app=\"padeltour\", event_type=\"http_error\"} [1m])))",
+          "legendFormat": "Errors",
+          "queryType": "range",
+          "refId": "B"
+        }
+      ],
+      "title": "Request & Error Rate Over Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "grafanacloud-logs"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
@@ -414,16 +475,25 @@
       "id": 6,
       "options": {
         "legend": {
-          "calcs": [],
-          "displayMode": "list",
+          "displayMode": "visible",
           "placement": "bottom",
           "showLegend": true
         },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "12.1.0",
       "targets": [
         {
           "datasource": {
@@ -432,38 +502,13 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "sum(rate({logger=\"padeltour.middleware\"} | json | status_code < 400 [1m]))",
+          "expr": "sum by (status_code) (count_over_time({app=\"padeltour\", event_type=\"request_complete\"} | json | status_code != \"\" [10m]))",
           "queryType": "range",
-          "refId": "A",
-          "legendFormat": "Success (2xx-3xx)"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "grafanacloud-logs"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "sum(rate({logger=\"padeltour.middleware\"} | json | status_code >= 400 and status_code < 500 [1m]))",
-          "queryType": "range",
-          "refId": "B",
-          "legendFormat": "Client Errors (4xx)"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "grafanacloud-logs"
-          },
-          "direction": "backward",
-          "editorMode": "code",
-          "expr": "sum(rate({logger=\"padeltour.middleware\"} | json | status_code >= 500 [1m]))",
-          "queryType": "range",
-          "refId": "C",
-          "legendFormat": "Server Errors (5xx)"
+          "refId": "A"
         }
       ],
-      "title": "Status Codes Over Time",
-      "type": "timeseries"
+      "title": "HTTP Status Code Distribution",
+      "type": "piechart"
     },
     {
       "datasource": {
@@ -488,20 +533,12 @@
             "steps": [
               {
                 "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 5
-              },
-              {
-                "color": "red",
-                "value": 10
+                "value": 0
               }
             ]
-          },
-          "unit": "percent"
-        }
+          }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
@@ -531,18 +568,71 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "(sum by (endpoint) (rate({logger=\"padeltour.middleware\"} | json | status_code >= 400 [5m])) / sum by (endpoint) (rate({logger=\"padeltour.middleware\"} | json | status_code > 0 [5m]))) * 100",
+          "expr": "topk(10, sum by (endpoint) (count_over_time({app=\"padeltour\", event_type=\"request_start\"} | json | endpoint != \"\" [10m])))",
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "Error Rate by Endpoint",
+      "title": "Top API Endpoints (Requests)",
       "type": "table"
     },
     {
       "datasource": {
         "type": "loki",
         "uid": "grafanacloud-logs"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
@@ -552,15 +642,19 @@
       },
       "id": 8,
       "options": {
-        "dedupStrategy": "none",
-        "enableLogDetails": true,
-        "prettifyLogMessage": false,
-        "showCommonLabels": false,
-        "showLabels": true,
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": true
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
       },
+      "pluginVersion": "12.1.0",
       "targets": [
         {
           "datasource": {
@@ -569,19 +663,190 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "{logger=\"padeltour.middleware\"} | json | status_code >= 400",
+          "expr": "avg(avg_over_time({app=\"padeltour\", event_type=\"request_complete\"} | json | unwrap duration_ms [5m]))",
+          "legendFormat": "Average",
+          "queryType": "range",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "grafanacloud-logs"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "quantile_over_time(0.95, {app=\"padeltour\", event_type=\"request_complete\"} | json | unwrap duration_ms [5m])",
+          "legendFormat": "95th Percentile",
+          "queryType": "range",
+          "refId": "B"
+        }
+      ],
+      "title": "Response Time Trends",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "grafanacloud-logs"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 22
+      },
+      "id": 9,
+      "options": {
+        "dedupStrategy": "none",
+        "enableInfiniteScrolling": false,
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "grafanacloud-logs"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{app=\"padeltour\", event_type=\"http_error\"} | limit 50",
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "Recent Error Logs",
+      "title": "Recent HTTP Errors",
+      "type": "logs"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "grafanacloud-logs"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 22
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "displayMode": "visible",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "grafanacloud-logs"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum by (method) (count_over_time({app=\"padeltour\", event_type=\"request_start\"} | json | method != \"\" [10m]))",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "HTTP Methods Distribution",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "grafanacloud-logs"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      },
+      "id": 11,
+      "options": {
+        "dedupStrategy": "none",
+        "enableInfiniteScrolling": false,
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "grafanacloud-logs"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{app=\"padeltour\", event_type=\"user_action\"} | limit 30",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Recent User Actions",
       "type": "logs"
     }
   ],
   "preload": false,
   "refresh": "30s",
   "schemaVersion": 41,
-  "tags": ["status-codes", "monitoring", "fixed"],
+  "tags": [
+    "padeltour",
+    "api",
+    "monitoring"
+  ],
   "templating": {
     "list": []
   },
@@ -591,7 +856,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "PadelTour - Status Code Monitoring (Fixed)",
-  "uid": "status-code-monitoring-fixed",
+  "title": "PadelTour API - Comprehensive Monitoring",
+  "uid": "padeltour-api-monitoring",
   "version": 1
 } 
