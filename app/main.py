@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1 import api_router
 from app.core.logging_config import setup_logging, get_logger
 from app.core.middleware import LoggingMiddleware
+# Uncomment below to use enhanced middleware instead:
+# from grafana.enhanced_middleware_v2 import EnhancedLoggingMiddleware
 
 # Setup logging first
 setup_logging()
@@ -12,6 +14,8 @@ app = FastAPI(title="PadelTour API")
 
 # Add logging middleware (should be first)
 app.add_middleware(LoggingMiddleware)
+# Or use enhanced version:
+# app.add_middleware(EnhancedLoggingMiddleware)
 
 # CORS middleware
 origins = ["*"]

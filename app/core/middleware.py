@@ -84,7 +84,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 "method": method,
                 "endpoint": url,
                 "status_code": status_code,
-                "duration": duration,
+                "duration_ms": duration,  # Changed from 'duration' to 'duration_ms'
                 "client_ip": client_ip,
                 "event_type": "request_complete"
             }
