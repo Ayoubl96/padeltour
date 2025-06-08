@@ -3,6 +3,7 @@ from app.schemas.base import *
 
 class PlayersBase(BaseModel):
     name: Optional[str] = None
+    gender: Optional[int] = None
     surname: Optional[str] = None
     nickname: Optional[str] = None
     class Config:
