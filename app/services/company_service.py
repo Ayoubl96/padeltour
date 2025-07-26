@@ -10,7 +10,7 @@ class CompanyService:
     def __init__(self, db: Session):
         self.db = db
         
-    def create_company(self, email: str, password: str, name: str, address: str, phone_number: str) -> Company:
+    def create_company(self, email: str, password: str, name: str, address: str, phone_number: str, vat_number: str) -> Company:
         """Create a new company account"""
         # Check if email is already registered
         existing_company = self.db.query(Company).filter(Company.email == email).first()
@@ -29,7 +29,8 @@ class CompanyService:
             password=hashed_password,
             name=name,
             address=address,
-            phone_number=phone_number
+            phone_number=phone_number,
+            vat_number=vat_number
         )
         
         self.db.add(new_company)

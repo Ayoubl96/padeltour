@@ -9,6 +9,7 @@ class CompanyRegistration(BaseModel):
     name: str
     address: str
     phone_number: str
+    vat_number: str
 
     class Config:
         json_schema_extra = {
@@ -17,7 +18,8 @@ class CompanyRegistration(BaseModel):
                 "password": "securepassword123",
                 "name": "Padel Club Barcelona",
                 "address": "Carrer de la Marina, 123, Barcelona",
-                "phone_number": "+34 123 456 789"
+                "phone_number": "+34 123 456 789",
+                "vat_number": "123456789"
             }
         }
 

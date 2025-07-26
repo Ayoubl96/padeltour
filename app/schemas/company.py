@@ -7,7 +7,6 @@ class CompanyBase(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     address: Optional[str] = None
-    description: Optional[str] = None
 
     class Config:
         from_attributes = True

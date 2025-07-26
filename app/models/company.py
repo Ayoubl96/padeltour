@@ -12,6 +12,7 @@ class Company(Base):
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'))
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('NOW()'), onupdate=text('NOW()'))
     phone_number = Column(String, nullable=True)
+    vat_number = Column(String, nullable=True)
 
     # Relationships
     courts = relationship("Court", back_populates="company")
