@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # Loops Email Configuration (Optional for now)
     loops_api_key: Optional[str] = None
     loops_verification_template_id: Optional[str] = None
+    loops_login_info_template_id: Optional[str] = None
 
     class Config:
         env_file = ".env"

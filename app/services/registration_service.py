@@ -86,7 +86,7 @@ class RegistrationService:
             "expires_in_minutes": 10
         }
     
-    def verify_and_complete_registration(self, email: str, code: str) -> Company:
+    async def verify_and_complete_registration(self, email: str, code: str) -> Company:
         """Step 2: Verify code and create company account"""
         verification = self.db.query(EmailVerification).filter(
             EmailVerification.email == email
@@ -145,6 +145,17 @@ class RegistrationService:
                 address=registration_data["address"],
                 phone_number=registration_data["phone_number"]
             )
+            
+            # Send login information email after successful company creation
+            try:
+                await self.email_service.send_login_info_email(
+                    email=company.email,
+                    company_name=company.name,
+                    login=company.login
+                )
+            except Exception as email_error:
+                # Log the error but don't fail the registration process
+                print(f"Warning: Failed to send login info email: {email_error}")
             
             # Clean up verification record
             self.db.delete(verification)

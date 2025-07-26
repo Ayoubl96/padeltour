@@ -93,7 +93,7 @@ async def initiate_registration(
     summary="Verify email and complete registration",
     description="Verify the email code and create the company account"
 )
-def verify_and_complete(
+async def verify_and_complete(
     verification_data: EmailVerification,
     db: Session = Depends(get_db)
 ):
@@ -106,7 +106,7 @@ def verify_and_complete(
     - Cleans up temporary verification data
     """
     registration_service = RegistrationService(db)
-    return registration_service.verify_and_complete_registration(
+    return await registration_service.verify_and_complete_registration(
         email=verification_data.email,
         code=verification_data.code
     )

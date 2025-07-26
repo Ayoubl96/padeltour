@@ -13,6 +13,7 @@ class LoopsEmailService:
     def __init__(self):
         self.api_key = settings.loops_api_key
         self.verification_template_id = settings.loops_verification_template_id
+        self.login_info_template_id = settings.loops_login_info_template_id
         self.is_configured = bool(self.api_key and self.verification_template_id)
         
         if self.is_configured:
@@ -58,6 +59,39 @@ class LoopsEmailService:
                 
         except Exception as e:
             print(f"Error sending verification email: {e}")
+            return False
+
+    async def send_login_info_email(self, email: str, company_name: str, login: str) -> bool:
+        """Send login information email using Loops transactional email"""
+        if not self.api_key or not self.login_info_template_id:
+            print("Loops login info template is not configured. Please set LOOPS_API_KEY and LOOPS_LOGIN_INFO_TEMPLATE_ID")
+            return False
+            
+        try:
+            payload = {
+                "email": email,
+                "transactionalId": self.login_info_template_id,
+                "dataVariables": {
+                    "companyName": company_name,
+                    "login": login,
+                    "email": email
+                }
+            }
+            
+            response = requests.post(
+                f"{self.BASE_URL}/transactional",
+                headers=self.headers,
+                json=payload
+            )
+            
+            if response.status_code == 200:
+                return True
+            else:
+                print(f"Loops API error sending login info: {response.status_code} - {response.text}")
+                return False
+                
+        except Exception as e:
+            print(f"Error sending login info email: {e}")
             return False
     
     def test_api_connection(self) -> bool:

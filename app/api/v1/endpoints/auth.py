@@ -31,9 +31,17 @@ def login(
             extra_data={"username": user_credentials.username}
         )
         
-        user = db.query(Company).filter(
-            user_credentials.username == Company.login
-        ).first()
+        # Check if username is 8-digit login or email
+        if user_credentials.username.isdigit() and len(user_credentials.username) == 8:
+            # Login with 8-digit company login
+            user = db.query(Company).filter(
+                Company.login == user_credentials.username
+            ).first()
+        else:
+            # Login with email
+            user = db.query(Company).filter(
+                Company.email == user_credentials.username
+            ).first()
 
         if not user:
             # Log failed login - user not found

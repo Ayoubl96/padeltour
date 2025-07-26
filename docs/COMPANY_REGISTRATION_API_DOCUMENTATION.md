@@ -4,6 +4,8 @@
 
 The company registration system implements a secure two-step verification process using email verification. This ensures that only valid email addresses are used for company accounts and prevents unauthorized registrations.
 
+**After successful registration completion, the system automatically sends a welcome email with login information to help companies access their account for the first time.**
+
 ## Architecture
 
 The registration system consists of:
@@ -12,6 +14,19 @@ The registration system consists of:
 - **Rate limiting** with attempt tracking (max 3 attempts)
 - **Email service integration** using Loops API
 - **Automatic cleanup** of expired/failed verification records
+- **Welcome email delivery** with login credentials after successful registration
+
+## Email Templates Required
+
+The system requires two Loops email templates:
+1. **Verification Email Template**: Sends the 6-digit verification code
+2. **Login Information Email Template**: Sends welcome message with login details
+
+### Login Information Email Variables
+The welcome email template should include these data variables:
+- `companyName`: The registered company name
+- `login`: The auto-generated company login ID (8-digit numeric string)
+- `email`: The company's email address
 
 ## API Endpoints
 
