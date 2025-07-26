@@ -143,7 +143,8 @@ class RegistrationService:
                 password=registration_data["password"],
                 name=registration_data["name"],
                 address=registration_data["address"],
-                phone_number=registration_data["phone_number"]
+                phone_number=registration_data["phone_number"],
+                vat_number=registration_data["vat_number"]
             )
             
             # Send login information email after successful company creation
