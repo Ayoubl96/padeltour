@@ -1,4 +1,4 @@
-from app.schemas.company import CompanyBase, CompanyOut
+from app.schemas.company import CompanyBase, CompanyOut, CompanyUpdate, PasswordChange, PasswordChangeResponse
 from app.schemas.court import CourtBase
 from app.schemas.player import (
     PlayersBase, PlayerOut, PlayerOutFull, 
@@ -23,6 +23,9 @@ __all__ = [
     "CompanyBase",
     "CompanyOut",
     "CourtBase",
+    "CompanyUpdate",
+    "PasswordChange",
+    "PasswordChangeResponse",
     "PlayersBase",
     "PlayerOut",
     "PlayerOutFull",

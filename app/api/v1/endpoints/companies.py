@@ -10,27 +10,6 @@ from app.services.company_service import CompanyService
 
 router = APIRouter()
 
-
-@router.post("/", status_code=status.HTTP_410_GONE)
-def create_company_deprecated():
-    """
-    DEPRECATED: Direct company creation is no longer supported.
-    Please use the registration flow instead.
-    """
-    raise HTTPException(
-        status_code=status.HTTP_410_GONE,
-        detail={
-            "message": "Direct company creation is deprecated. Please use the registration flow with email verification.",
-            "registration_endpoints": {
-                "step_1": "POST /api/v1/register/initiate - Send verification code",
-                "step_2": "POST /api/v1/register/verify - Complete registration",
-                "resend": "POST /api/v1/register/resend - Resend verification code"
-            },
-            "documentation": "/docs#/Registration"
-        }
-    )
-
-
 @router.post("/admin/create", status_code=status.HTTP_201_CREATED, response_model=schemas.CompanyOut)
 def create_company_admin(
     company_data: schemas.CompanyBase,
@@ -61,6 +40,67 @@ def get_current_company(
 ):
     company_service = CompanyService(db)
     return company_service.get_company_by_id(current_company.id)
+
+
+@router.patch("/me", response_model=schemas.CompanyOut)
+def update_current_company(
+    company_update: schemas.CompanyUpdate,
+    current_company: Company = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update current company information.
+    Only provided fields will be updated (partial update).
+    """
+    company_service = CompanyService(db)
+    
+    # Convert to dict and filter out None values
+    update_data = {k: v for k, v in company_update.dict().items() if v is not None}
+    
+    if not update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No fields provided for update"
+        )
+    
+    return company_service.update_company(current_company.id, **update_data)
+
+
+@router.post("/me/change-password", response_model=schemas.PasswordChangeResponse)
+def change_password(
+    password_data: schemas.PasswordChange,
+    current_company: Company = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Change current company password.
+    Requires current password verification.
+    """
+    # Validate password confirmation
+    if password_data.new_password != password_data.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password and confirmation do not match"
+        )
+    
+    # Basic password validation
+    if len(password_data.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be at least 8 characters long"
+        )
+    
+    company_service = CompanyService(db)
+    company_service.change_password(
+        company_id=current_company.id,
+        current_password=password_data.current_password,
+        new_password=password_data.new_password
+    )
+    
+    return schemas.PasswordChangeResponse(
+        success=True,
+        message="Password changed successfully"
+    )
 
 
 @router.get("", response_model=List[schemas.CompanyOut])

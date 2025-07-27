@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
 from app.models.company import Company
-from app.utils.security import hash_password
+from app.utils.security import hash_password, verify_password
 
 
 class CompanyService:
@@ -67,6 +67,18 @@ class CompanyService:
         """Update company details"""
         company = self.get_company_by_id(company_id)
         
+        # Check if email is being updated and if it's already taken
+        if 'email' in kwargs and kwargs['email']:
+            existing_company = self.db.query(Company).filter(
+                Company.email == kwargs['email'],
+                Company.id != company_id
+            ).first()
+            if existing_company:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already registered"
+                )
+        
         # Update fields
         for key, value in kwargs.items():
             if key == 'password' and value:
@@ -77,4 +89,21 @@ class CompanyService:
         self.db.commit()
         self.db.refresh(company)
         
-        return company 
+        return company
+    
+    def change_password(self, company_id: int, current_password: str, new_password: str) -> bool:
+        """Change company password with current password verification"""
+        company = self.get_company_by_id(company_id)
+        
+        # Verify current password
+        if not verify_password(current_password, company.password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current password is incorrect"
+            )
+        
+        # Hash and update new password
+        company.password = hash_password(new_password)
+        self.db.commit()
+        
+        return True 
