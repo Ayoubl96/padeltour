@@ -19,6 +19,7 @@ class CompanyOut(CompanyBase):
     players_count: Optional[int] = None
     courts_count: Optional[int] = None
     tournaments_count: Optional[int] = None
+    vat_number: Optional[str] = None
 
     class Config:
         from_attributes = True 
