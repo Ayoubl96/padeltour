@@ -17,11 +17,13 @@ class Settings(BaseSettings):
     playtomic_api_url: str
     playtomic_email: str
     playtomic_password: str
+    frontend_url: str
     
     # Loops Email Configuration (Optional for now)
     loops_api_key: Optional[str] = None
     loops_verification_template_id: Optional[str] = None
     loops_login_info_template_id: Optional[str] = None
+    loops_password_reset_template_id: Optional[str] = None
 
     class Config:
         env_file = ".env"
