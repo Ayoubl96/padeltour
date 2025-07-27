@@ -63,6 +63,7 @@ jobs:
         echo "PLAYTOMIC_PASSWORD=test-password" >> $GITHUB_ENV
         echo "LOOPS_API_KEY=test-loops-key" >> $GITHUB_ENV
         echo "LOOPS_VERIFICATION_TEMPLATE_ID=test-template-id" >> $GITHUB_ENV
+        echo "FRONTEND_URL=http://localhost:3000" >> $GITHUB_ENV
         
     - name: Run database migrations
       run: |
