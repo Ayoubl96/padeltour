@@ -149,19 +149,12 @@ jobs:
     - name: Deploy to Heroku
       env:
         HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-        HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
       run: |
-        # Configure git for Heroku authentication
-        git config --global user.email "$HEROKU_EMAIL"
-        git config --global user.name "GitHub Actions"
+        # Create a tarball of the source code
+        git archive --format=tar.gz HEAD > source.tar.gz
         
-        # Set up git credentials for Heroku
-        git config --global credential.helper store
-        echo "https://:$HEROKU_API_KEY@git.heroku.com" > ~/.git-credentials
-        
-        # Add Heroku remote and push
-        heroku git:remote -a api-tournme
-        git push heroku main
+        # Upload and build using Heroku builds API
+        heroku builds:create --source-tar source.tar.gz --app api-tournme
         
     - name: Run migrations on Heroku
       env:
