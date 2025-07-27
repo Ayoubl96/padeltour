@@ -140,16 +140,8 @@ jobs:
           exit 1
         fi
         
-        # Create netrc file for authentication
-        cat > ~/.netrc << EOF
-        machine api.heroku.com
-          login $HEROKU_EMAIL
-          password $HEROKU_API_KEY
-        machine git.heroku.com
-          login $HEROKU_EMAIL
-          password $HEROKU_API_KEY
-        EOF
-        chmod 600 ~/.netrc
+        # Use direct token authentication (modern approach)
+        echo $HEROKU_API_KEY | heroku auth:token
         
         # Verify authentication
         heroku auth:whoami
