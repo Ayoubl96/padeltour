@@ -67,7 +67,15 @@ jobs:
         
     - name: Run database migrations
       run: |
-        alembic upgrade head
+        # Check current migration state
+        echo "Current migration state:"
+        alembic current
+        echo "Available heads:"
+        alembic heads
+        
+        # Upgrade to all heads (handles multiple heads scenario)
+        echo "Running migrations..."
+        alembic upgrade heads
         
     - name: Run tests
       run: |
