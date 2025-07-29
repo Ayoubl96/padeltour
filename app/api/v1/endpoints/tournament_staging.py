@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, status, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from datetime import datetime, date, timezone
+from collections import defaultdict
 
 from app import schemas
 from app.core.security import get_current_user
@@ -10,7 +11,9 @@ from app.models.company import Company
 from app.services.tournament_staging_service import TournamentStagingService
 from app.services.match_scheduling_service import MatchSchedulingService
 from app.services.couple_stats_service import CoupleStatsService
-from app.core.constants import StageType, BracketType, AssignmentMethod
+from app.core.constants import StageType, BracketType, AssignmentMethod, MatchResultStatus
+from app.models.tournament import Match, Tournament
+from sqlalchemy.orm import joinedload
 
 router = APIRouter()
 
@@ -262,8 +265,12 @@ def get_stage_matches(
     db: Session = Depends(get_db),
     current_company: Company = Depends(get_current_user)
 ):
+    """Get matches for a stage in proper display order"""
     scheduling_service = MatchSchedulingService(db)
-    return scheduling_service.get_stage_matches(stage_id, current_company.id)
+    matches = scheduling_service.get_stage_matches(stage_id, current_company.id)
+    
+    # Sort by display_order for proper frontend ordering
+    return sorted(matches, key=lambda m: (m.display_order or 999999, m.id))
 
 @router.get("/tournament/{tournament_id}/matches", response_model=List[schemas.MatchOut])
 def get_tournament_matches(
@@ -271,8 +278,12 @@ def get_tournament_matches(
     db: Session = Depends(get_db),
     current_company: Company = Depends(get_current_user)
 ):
+    """Get all matches for a tournament in proper display order"""
     scheduling_service = MatchSchedulingService(db)
-    return scheduling_service.get_tournament_matches(tournament_id, current_company.id)
+    matches = scheduling_service.get_tournament_matches(tournament_id, current_company.id)
+    
+    # Sort by display_order for proper frontend ordering
+    return sorted(matches, key=lambda m: (m.display_order or 999999, m.id))
 
 @router.get("/group/{group_id}/matches", response_model=List[schemas.MatchOut])
 def get_group_matches(
@@ -280,8 +291,12 @@ def get_group_matches(
     db: Session = Depends(get_db),
     current_company: Company = Depends(get_current_user)
 ):
+    """Get matches for a group in proper display order"""
     scheduling_service = MatchSchedulingService(db)
-    return scheduling_service.get_group_matches(group_id, current_company.id)
+    matches = scheduling_service.get_group_matches(group_id, current_company.id)
+    
+    # Sort by order_in_group for proper frontend ordering
+    return sorted(matches, key=lambda m: (m.order_in_group or 999999, m.display_order or 999999, m.id))
 
 @router.get("/bracket/{bracket_id}/matches", response_model=List[schemas.MatchOut])
 def get_bracket_matches(
@@ -289,8 +304,12 @@ def get_bracket_matches(
     db: Session = Depends(get_db),
     current_company: Company = Depends(get_current_user)
 ):
+    """Get matches for a bracket in proper display order"""
     scheduling_service = MatchSchedulingService(db)
-    return scheduling_service.get_bracket_matches(bracket_id, current_company.id)
+    matches = scheduling_service.get_bracket_matches(bracket_id, current_company.id)
+    
+    # Sort by round and bracket position for proper frontend ordering
+    return sorted(matches, key=lambda m: (m.round_number or 999999, m.bracket_position or 999999, m.id))
 
 @router.get("/match/{match_id}", response_model=schemas.MatchOut)
 def get_match_by_id(
@@ -300,6 +319,244 @@ def get_match_by_id(
 ):
     scheduling_service = MatchSchedulingService(db)
     return scheduling_service.get_match_by_id(match_id, current_company.id)
+
+# NEW: Intelligent Match Ordering Endpoints
+@router.post("/tournament/{tournament_id}/calculate-match-order", response_model=List[schemas.MatchOut])
+def calculate_tournament_match_order(
+    tournament_id: int,
+    strategy: Optional[str] = Query("balanced_load", description="Ordering strategy: balanced_load, court_efficient, time_sequential, group_clustered"),
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    """
+    Calculate and apply optimal match ordering for an entire tournament.
+    
+    Strategies:
+    - balanced_load: Balance groups and minimize couple rest conflicts (recommended)
+    - court_efficient: Maximize court utilization
+    - time_sequential: Optimize for sequential time scheduling  
+    - group_clustered: Keep same-group matches together
+    """
+    from app.services.match_ordering_service import MatchOrderingService
+    
+    ordering_service = MatchOrderingService(db)
+    ordered_matches = ordering_service.calculate_optimal_match_order(
+        tournament_id=tournament_id,
+        company_id=current_company.id,
+        optimization_strategy=strategy
+    )
+    
+    return ordered_matches
+
+@router.post("/stage/{stage_id}/calculate-match-order", response_model=List[schemas.MatchOut])
+def calculate_stage_match_order(
+    stage_id: int,
+    strategy: Optional[str] = Query("balanced_load", description="Ordering strategy: balanced_load, court_efficient, time_sequential, group_clustered"),
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    """
+    Calculate and apply optimal match ordering for a specific stage.
+    
+    Strategies:
+    - balanced_load: Balance groups and minimize couple rest conflicts (recommended)
+    - court_efficient: Maximize court utilization
+    - time_sequential: Optimize for sequential time scheduling  
+    - group_clustered: Keep same-group matches together
+    """
+    from app.services.match_ordering_service import MatchOrderingService
+    from app.models.tournament import TournamentStage, Tournament
+    
+    # First, get the stage and its tournament_id
+    stage = (
+        db.query(TournamentStage)
+        .join(Tournament)
+        .filter(
+            TournamentStage.id == stage_id,
+            Tournament.company_id == current_company.id,
+            TournamentStage.deleted_at.is_(None)
+        )
+        .first()
+    )
+    
+    if not stage:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Stage not found or unauthorized access"
+        )
+    
+    ordering_service = MatchOrderingService(db)
+    ordered_matches = ordering_service.calculate_optimal_match_order(
+        tournament_id=stage.tournament_id,  # Now we have the actual tournament_id
+        company_id=current_company.id,
+        stage_id=stage_id,
+        optimization_strategy=strategy
+    )
+    
+    return ordered_matches
+
+@router.get("/tournament/{tournament_id}/match-order-info")
+def get_tournament_match_order_info(
+    tournament_id: int,
+    db: Session = Depends(get_db),
+    current_company: Company = Depends(get_current_user)
+):
+    """
+    Get comprehensive information about the current match ordering for a tournament.
+    
+    Returns detailed tournament state including:
+    - Live matches (currently being played)
+    - Next matches (ready to start) 
+    - All pending matches (not yet started)
+    - Completed matches (finished games)
+    - Tournament progress and court information
+    
+    This information updates dynamically as match statuses change.
+    """
+    from app.services.match_ordering_service import MatchOrderingService
+    
+    ordering_service = MatchOrderingService(db)
+    
+    try:
+        # Get tournament info
+        tournament = ordering_service._validate_tournament_access(tournament_id, current_company.id)
+        stages = ordering_service._get_tournament_stages(tournament_id, current_company.id)
+        courts = ordering_service._get_tournament_courts(tournament_id)
+        
+        # Get ALL matches for this tournament (not just pending)
+        all_matches = (
+            db.query(Match)
+            .join(Tournament)
+            .filter(
+                Match.tournament_id == tournament_id,
+                Tournament.company_id == current_company.id
+            )
+            .options(joinedload(Match.stage), joinedload(Match.group), joinedload(Match.bracket))
+            .order_by(Match.display_order.asc().nullslast(), Match.id)
+            .all()
+        )
+        
+        # Categorize matches by status
+        pending_matches = [m for m in all_matches if m.match_result_status == MatchResultStatus.PENDING]
+        completed_matches = [m for m in all_matches if m.match_result_status == MatchResultStatus.COMPLETED]
+        
+        # Determine live matches and next matches based on current state
+        num_courts = len(courts)
+        
+        # Live matches: First N pending matches where N = number of courts
+        # These are the matches that should be currently playing
+        live_matches = pending_matches[:num_courts] if num_courts > 0 else []
+        
+        # Next matches: Next batch after live matches  
+        next_batch_size = min(num_courts, len(pending_matches) - len(live_matches))
+        next_matches = pending_matches[len(live_matches):len(live_matches) + next_batch_size] if next_batch_size > 0 else []
+        
+        # Calculate tournament progress
+        total_matches = len(all_matches)
+        completed_count = len(completed_matches)
+        progress_percentage = round((completed_count / total_matches * 100), 1) if total_matches > 0 else 0
+        
+        # Helper function to format match info
+        def format_match_info(match: Match) -> Dict[str, Any]:
+            return {
+                "id": match.id,
+                "display_order": match.display_order,
+                "couple1_id": match.couple1_id,
+                "couple2_id": match.couple2_id,
+                "winner_couple_id": match.winner_couple_id,
+                "court_id": match.court_id,
+                "stage_id": match.stage_id,
+                "stage_name": match.stage.name if match.stage else None,
+                "stage_type": match.stage.stage_type if match.stage else None,
+                "group_id": match.group_id,
+                "group_name": match.group.name if match.group else None,
+                "bracket_id": match.bracket_id,
+                "bracket_type": match.bracket.bracket_type if match.bracket else None,
+                "round_number": match.round_number,
+                "order_in_group": match.order_in_group,
+                "order_in_stage": match.order_in_stage,
+                "scheduled_start": match.scheduled_start.isoformat() if match.scheduled_start else None,
+                "scheduled_end": match.scheduled_end.isoformat() if match.scheduled_end else None,
+                "match_result_status": match.match_result_status,
+                "games": match.games,
+                "created_at": match.created_at.isoformat(),
+                "updated_at": match.updated_at.isoformat()
+            }
+        
+        # Group completed matches by stage for better organization
+        completed_by_stage = defaultdict(list)
+        for match in completed_matches:
+            stage_key = f"{match.stage.name}" if match.stage else "Unknown Stage"
+            completed_by_stage[stage_key].append(format_match_info(match))
+        
+        return {
+            "tournament_id": tournament_id,
+            "tournament_name": tournament.name,
+            "tournament_start_date": tournament.start_date.isoformat(),
+            "tournament_end_date": tournament.end_date.isoformat(),
+            
+            # Tournament structure
+            "total_stages": len(stages),
+            "total_courts": num_courts,
+            "total_matches": total_matches,
+            
+            # Progress tracking
+            "completed_matches_count": completed_count,
+            "pending_matches_count": len(pending_matches),
+            "progress_percentage": progress_percentage,
+            
+            # Current state (updates dynamically as matches complete)
+            "live_matches": [format_match_info(m) for m in live_matches],
+            "next_matches": [format_match_info(m) for m in next_matches],
+            
+            # All match lists for comprehensive view
+            "all_pending_matches": [format_match_info(m) for m in pending_matches],
+            "completed_matches_by_stage": dict(completed_by_stage),
+            
+            # Court and stage information
+            "courts": [
+                {
+                    "id": c.court_id,
+                    "tournament_court_id": c.id,
+                    "availability_start": c.availability_start.isoformat() if c.availability_start else None,
+                    "availability_end": c.availability_end.isoformat() if c.availability_end else None,
+                    "court_name": c.court.name if hasattr(c, 'court') and c.court else f"Court {c.court_id}"
+                } for c in courts
+            ],
+            "stages": [
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "stage_type": s.stage_type,
+                    "order": s.order,
+                    "config": s.config
+                } for s in stages
+            ],
+            
+            # Algorithm insights
+            "ordering_strategy_used": "balanced_load",  # Could be made dynamic
+            "last_updated": datetime.now().isoformat(),
+            
+            # Quick stats for frontend display
+            "quick_stats": {
+                "matches_in_progress": len(live_matches),
+                "matches_waiting": len(next_matches),
+                "matches_remaining": len(pending_matches),
+                "matches_completed": completed_count,
+                "estimated_completion": f"{progress_percentage}% complete"
+            }
+        }
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving tournament match information: {str(e)}"
+        )
 
 @router.put("/match/{match_id}", response_model=schemas.MatchOut)
 def update_match(

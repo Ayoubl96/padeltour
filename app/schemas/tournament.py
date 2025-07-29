@@ -226,6 +226,14 @@ class MatchBase(BaseModel):
     is_time_limited: bool = False
     time_limit_minutes: Optional[int] = None
     match_result_status: Optional[str] = None
+    
+    # NEW: Ordering and display fields
+    display_order: Optional[int] = None
+    order_in_stage: Optional[int] = None
+    order_in_group: Optional[int] = None
+    bracket_position: Optional[int] = None
+    round_number: Optional[int] = None
+    priority_score: Optional[float] = None
 
 
 class MatchCreate(MatchBase):
@@ -244,6 +252,14 @@ class MatchUpdate(BaseModel):
     is_time_limited: Optional[bool] = None
     time_limit_minutes: Optional[int] = None
     match_result_status: Optional[str] = None
+    
+    # NEW: Ordering and display fields
+    display_order: Optional[int] = None
+    order_in_stage: Optional[int] = None
+    order_in_group: Optional[int] = None
+    bracket_position: Optional[int] = None
+    round_number: Optional[int] = None
+    priority_score: Optional[float] = None
 
 
 class MatchOut(MatchBase):

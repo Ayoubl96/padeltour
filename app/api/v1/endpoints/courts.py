@@ -30,7 +30,7 @@ async def upload_image(
     )
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED, response_model=schemas.CourtBase)
+@router.post("/", status_code=status.HTTP_201_CREATED, response_model=schemas.CourtOut)
 def create_court(
     court_data: schemas.CourtBase,
     db: Session = Depends(get_db),

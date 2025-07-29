@@ -1,5 +1,5 @@
 from app.models.base import *
-from sqlalchemy import Boolean, Index
+from sqlalchemy import Boolean, Index, Float
 
 class Tournament(Base):
     __tablename__ = "tournaments"
@@ -159,6 +159,14 @@ class Match(Base):
     is_time_limited = Column(Boolean, default=False)
     time_limit_minutes = Column(Integer, nullable=True)
     match_result_status = Column(String, nullable=True)  # 'completed', 'time_expired', 'forfeited'
+    
+    # NEW: Ordering and display fields
+    display_order = Column(Integer, nullable=True)  # Global tournament order
+    order_in_stage = Column(Integer, nullable=True)  # Order within the stage
+    order_in_group = Column(Integer, nullable=True)  # Order within the group (for group stages)
+    bracket_position = Column(Integer, nullable=True)  # Position in bracket (for elimination stages)
+    round_number = Column(Integer, nullable=True)  # Round number for bracket stages
+    priority_score = Column(Float, nullable=True)  # Calculated priority for ordering algorithm
 
     # Relationships
     tournament = relationship("Tournament", back_populates="matches")

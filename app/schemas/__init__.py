@@ -1,5 +1,5 @@
 from app.schemas.company import CompanyBase, CompanyOut, CompanyUpdate, PasswordChange, PasswordChangeResponse
-from app.schemas.court import CourtBase
+from app.schemas.court import CourtBase, CourtOut
 from app.schemas.player import (
     PlayersBase, PlayerOut, PlayerOutFull, 
     PlayerCompany, PlayerPlaytomic

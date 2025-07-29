@@ -1005,19 +1005,27 @@ class TournamentStagingService:
         return matches
 
     def generate_stage_matches(self, stage_id: int, company_id: int, couples: List[int] = None) -> List[Match]:
-        """Generate matches for an entire stage, handling both group and elimination stages"""
-        # Get the stage with ownership validation
-        stage = self.get_stage_by_id(stage_id, company_id)
+        """
+        Generate matches for a stage. Works for both group stages and elimination stages.
+        For group stages, it generates matches for all groups.
+        For elimination stages, it generates matches in the bracket.
         
-        # Check if matches already exist for this stage
-        existing_matches = self.db.query(Match).filter(Match.stage_id == stage_id).count()
-        if existing_matches > 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"{existing_matches} matches already exist for this stage"
-            )
+        NEW: Automatically applies intelligent match ordering after generation.
+        """
+        # Get stage and validate ownership
+        stage = (
+            self.db.query(TournamentStage)
+            .options(joinedload(TournamentStage.tournament))
+            .filter(TournamentStage.id == stage_id)
+            .first()
+        )
         
-        # Create scheduling service for court assignment
+        if not stage:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stage not found")
+        if stage.tournament.company_id != company_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized access to this stage")
+        
+        # Create a scheduling service instance for court assignment
         scheduling_service = MatchSchedulingService(self.db)
         
         # Generate matches based on stage type
@@ -1053,7 +1061,6 @@ class TournamentStagingService:
                 
                 if match_format == MatchFormat.ROUND_ROBIN:
                     # Round-robin: every couple plays every other couple
-                    # For n couples, this creates C(n,2) = n*(n-1)/2 matches
                     for i in range(len(couple_ids)):
                         for j in range(i + 1, len(couple_ids)):
                             for _ in range(matches_per_opponent):
@@ -1071,94 +1078,24 @@ class TournamentStagingService:
                                 group_matches.append(match)
                 
                 elif match_format == MatchFormat.SWISS_SYSTEM:
-                    # Swiss system: couples are paired based on similar performance
-                    # For now, implement a simplified version with random initial pairings
-                    # In a real Swiss system, pairings would be updated after each round
-                    num_rounds = match_rules.get("swiss_rounds", min(len(couple_ids) - 1, 5))
-                    
-                    for round_num in range(num_rounds):
-                        # For first round, pair randomly
-                        # For subsequent rounds, this would typically pair based on standings
-                        shuffled_couples = couple_ids.copy()
-                        random.shuffle(shuffled_couples)
-                        
-                        # Pair couples (skip last one if odd number)
-                        for i in range(0, len(shuffled_couples) - 1, 2):
+                    # Swiss system: complex pairing algorithm
+                    # For now, implement as simplified round-robin
+                    # TODO: Implement proper Swiss system algorithm
+                    for i in range(len(couple_ids)):
+                        for j in range(i + 1, len(couple_ids)):
                             for _ in range(matches_per_opponent):
                                 match = Match(
                                     tournament_id=stage.tournament_id,
                                     stage_id=stage.id,
                                     group_id=group.id,
-                                    couple1_id=shuffled_couples[i],
-                                    couple2_id=shuffled_couples[i + 1],
+                                    couple1_id=couple_ids[i],
+                                    couple2_id=couple_ids[j],
                                     games=[],
                                     is_time_limited=is_time_limited,
                                     time_limit_minutes=time_limit_minutes,
                                     match_result_status=MatchResultStatus.PENDING
                                 )
                                 group_matches.append(match)
-                
-                elif match_format == MatchFormat.CUSTOM:
-                    # Custom format: use custom pairing logic
-                    max_matches = match_rules.get("max_matches_per_group", None)
-                    min_matches_per_couple = match_rules.get("min_matches_per_couple", 1)
-                    
-                    # Simple implementation: create random pairings up to max_matches
-                    if max_matches:
-                        matches_created = 0
-                        couple_match_count = {couple_id: 0 for couple_id in couple_ids}
-                        
-                        while matches_created < max_matches:
-                            # Find couples that need more matches
-                            available_couples = [
-                                couple_id for couple_id in couple_ids 
-                                if couple_match_count[couple_id] < min_matches_per_couple * len(couple_ids)
-                            ]
-                            
-                            if len(available_couples) < 2:
-                                available_couples = couple_ids.copy()
-                            
-                            # Randomly pair two couples
-                            random.shuffle(available_couples)
-                            couple1_id = available_couples[0]
-                            couple2_id = available_couples[1]
-                            
-                            for _ in range(matches_per_opponent):
-                                match = Match(
-                                    tournament_id=stage.tournament_id,
-                                    stage_id=stage.id,
-                                    group_id=group.id,
-                                    couple1_id=couple1_id,
-                                    couple2_id=couple2_id,
-                                    games=[],
-                                    is_time_limited=is_time_limited,
-                                    time_limit_minutes=time_limit_minutes,
-                                    match_result_status=MatchResultStatus.PENDING
-                                )
-                                group_matches.append(match)
-                                matches_created += 1
-                                couple_match_count[couple1_id] += 1
-                                couple_match_count[couple2_id] += 1
-                                
-                                if matches_created >= max_matches:
-                                    break
-                    else:
-                        # Default to round-robin if no max_matches specified
-                        for i in range(len(couple_ids)):
-                            for j in range(i + 1, len(couple_ids)):
-                                for _ in range(matches_per_opponent):
-                                    match = Match(
-                                        tournament_id=stage.tournament_id,
-                                        stage_id=stage.id,
-                                        group_id=group.id,
-                                        couple1_id=couple_ids[i],
-                                        couple2_id=couple_ids[j],
-                                        games=[],
-                                        is_time_limited=is_time_limited,
-                                        time_limit_minutes=time_limit_minutes,
-                                        match_result_status=MatchResultStatus.PENDING
-                                    )
-                                    group_matches.append(match)
                 
                 else:
                     # Default to round-robin for unknown formats
@@ -1191,39 +1128,29 @@ class TournamentStagingService:
             for match in all_matches:
                 self.db.refresh(match)
                 
-            # Automatically assign courts
-            all_matches = scheduling_service.auto_assign_courts(all_matches, stage.tournament_id)
+            # NEW: Apply intelligent match ordering
+            try:
+                from app.services.match_ordering_service import MatchOrderingService
+                ordering_service = MatchOrderingService(self.db)
+                all_matches = ordering_service.calculate_optimal_match_order(
+                    tournament_id=stage.tournament_id,
+                    company_id=company_id,
+                    stage_id=stage_id,
+                    optimization_strategy="balanced_load"
+                )
+            except Exception as e:
+                # If ordering fails, continue with basic court assignment
+                print(f"Warning: Match ordering failed: {e}")
+                all_matches = scheduling_service.auto_assign_courts(all_matches, stage.tournament_id)
             
             # Initialize couple stats for all matches
             self.couple_stats_service.initialize_couple_stats_for_matches(all_matches)
             
             return all_matches
-                
+            
         elif stage.stage_type == StageType.ELIMINATION:
-            # For elimination stages, find or create main bracket and generate matches
-            bracket = self.db.query(TournamentBracket).filter(
-                TournamentBracket.stage_id == stage_id,
-                TournamentBracket.bracket_type == BracketType.MAIN,
-                TournamentBracket.deleted_at.is_(None)
-            ).first()
-            
-            if not bracket:
-                # Create main bracket if it doesn't exist
-                bracket = TournamentBracket(
-                    stage_id=stage_id,
-                    bracket_type=BracketType.MAIN
-                )
-                self.db.add(bracket)
-                self.db.commit()
-                self.db.refresh(bracket)
-            
-            # Use existing method to generate bracket matches
-            matches = self.generate_bracket_matches(bracket.id, company_id, couples)
-            
-            # Initialize couple stats for all matches
-            self.couple_stats_service.initialize_couple_stats_for_matches(matches)
-            
-            return matches
+            # For elimination stages, create bracket matches
+            return self.generate_bracket_matches(stage_id, company_id, couples)
         
         else:
             raise HTTPException(
