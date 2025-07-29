@@ -160,7 +160,19 @@ jobs:
       env:
         HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
       run: |
-        heroku run alembic upgrade head --app api-tournme
+        # Check for multiple heads and handle appropriately
+        echo "Checking migration status..."
+        heroku run "alembic current" --app api-tournme
+        echo "Available heads:"
+        heroku run "alembic heads" --app api-tournme
+        
+        # Try to upgrade to heads first (handles multiple heads), then to head
+        echo "Attempting migration..."
+        heroku run "alembic upgrade heads" --app api-tournme
+        
+        # Verify final state
+        echo "Final migration state:"
+        heroku run "alembic current" --app api-tournme
         
     - name: Verify deployment
       run: |
