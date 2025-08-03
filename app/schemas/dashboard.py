@@ -139,12 +139,16 @@ class PlayerCouplePerformance(BaseModel):
 
 
 class UpcomingMatch(BaseModel):
+    tournament_id: int
     match_id: int
     tournament_name: str
     couple1_name: str
     couple2_name: str
     scheduled_start: Optional[str]
     court_name: Optional[str]
+    is_scheduled: bool              # New field to indicate if match has a schedule
+    tournament_start: str           # Tournament start date for context
+    status: str                     # "scheduled" or "unscheduled"
 
 
 class ConflictMatch(BaseModel):
@@ -174,7 +178,7 @@ class SystemAlerts(BaseModel):
 
 
 class OperationalDashboard(BaseModel):
-    upcoming_matches_24h: List[UpcomingMatch]  # Now only shows scheduled matches
+    upcoming_matches_24h: List[UpcomingMatch]  # Shows ALL unplayed matches (scheduled + unscheduled)
     court_conflicts: List[CourtConflict]
     incomplete_match_results: int
     tournament_deadlines: List[TournamentDeadline]

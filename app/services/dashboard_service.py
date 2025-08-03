@@ -415,27 +415,50 @@ class DashboardService:
     def _get_operational_dashboard(self, company_id: int, now: datetime) -> Dict[str, Any]:
         """Get operational dashboard data"""
         
-        # Upcoming matches in next 24 hours
+        # Upcoming matches - ALL unplayed matches (scheduled and unscheduled)
         tomorrow = now + timedelta(hours=24)
-        # Only show matches that have been scheduled (have a scheduled_start time)
+        
+        # Get matches in two categories:
+        # 1. Scheduled matches in next 24 hours
+        # 2. Unscheduled matches from active tournaments
         upcoming_matches = self.db.query(Match).join(Tournament).filter(
             Tournament.company_id == company_id,
-            Match.scheduled_start.isnot(None),  # Explicitly only scheduled matches
-            Match.scheduled_start >= now,
-            Match.scheduled_start <= tomorrow,
-            Match.winner_couple_id.is_(None)
-        ).order_by(Match.scheduled_start).all()
+            Match.winner_couple_id.is_(None),  # Not yet played
+            or_(
+                # Scheduled matches in next 24 hours
+                and_(
+                    Match.scheduled_start.isnot(None),
+                    Match.scheduled_start >= now,
+                    Match.scheduled_start <= tomorrow
+                ),
+                # Unscheduled matches from active/upcoming tournaments
+                and_(
+                    Match.scheduled_start.is_(None),
+                    Tournament.end_date >= now  # Tournament not finished
+                )
+            )
+        ).order_by(
+            # Order by scheduled_start if exists, otherwise by tournament start_date
+            case(
+                (Match.scheduled_start.isnot(None), Match.scheduled_start),
+                else_=Tournament.start_date
+            )
+        ).all()
         
         upcoming_matches_data = [
             {
                 "match_id": match.id,
+                "tournament_id": match.tournament_id,
                 "tournament_name": match.tournament.name,
                 "couple1_name": match.couple1.name,
                 "couple2_name": match.couple2.name,
                 "scheduled_start": match.scheduled_start.isoformat() if match.scheduled_start else None,
-                "court_name": match.court.name if match.court else None
+                "court_name": match.court.name if match.court else None,
+                "is_scheduled": match.scheduled_start is not None,  # Indicate if match is scheduled
+                "tournament_start": match.tournament.start_date.isoformat(),
+                "status": "scheduled" if match.scheduled_start else "unscheduled"
             }
-            for match in upcoming_matches[:20]  # Limit to 20 for display
+            for match in upcoming_matches[:30]  # Increased limit to show more matches
         ]
         
         # Court conflicts (double-booked courts)
