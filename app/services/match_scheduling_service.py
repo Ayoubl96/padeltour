@@ -1068,7 +1068,7 @@ class MatchSchedulingService:
         return matches
     
     def get_group_matches(self, group_id: int, company_id: int) -> List[Match]:
-        """Get all matches for a group"""
+        """Get all matches for a group using new algorithm ordering"""
         group = (
             self.db.query(TournamentGroup)
             .options(
@@ -1089,17 +1089,25 @@ class MatchSchedulingService:
             .options(
                 joinedload(Match.couple1),
                 joinedload(Match.couple2),
-                joinedload(Match.court)
+                joinedload(Match.court),
+                joinedload(Match.stage),
+                joinedload(Match.group),
+                joinedload(Match.bracket)
             )
             .filter(Match.group_id == group_id)
-            .order_by(Match.scheduled_start, Match.id)
+            .order_by(
+                Match.display_order.asc().nullslast(),
+                Match.order_in_group.asc().nullslast(),
+                Match.order_in_stage.asc().nullslast(),
+                Match.id
+            )
             .all()
         )
         
         return matches
     
     def get_bracket_matches(self, bracket_id: int, company_id: int) -> List[Match]:
-        """Get all matches for a bracket"""
+        """Get all matches for a bracket using new algorithm ordering"""
         bracket = (
             self.db.query(TournamentBracket)
             .options(
@@ -1120,10 +1128,19 @@ class MatchSchedulingService:
             .options(
                 joinedload(Match.couple1),
                 joinedload(Match.couple2),
-                joinedload(Match.court)
+                joinedload(Match.court),
+                joinedload(Match.stage),
+                joinedload(Match.group),
+                joinedload(Match.bracket)
             )
             .filter(Match.bracket_id == bracket_id)
-            .order_by(Match.bracket_position)
+            .order_by(
+                Match.display_order.asc().nullslast(),
+                Match.round_number.asc().nullslast(),
+                Match.bracket_position.asc().nullslast(),
+                Match.order_in_stage.asc().nullslast(),
+                Match.id
+            )
             .all()
         )
         
