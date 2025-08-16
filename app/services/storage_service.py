@@ -39,4 +39,4 @@ class StorageService:
             # Add the public URL directly to the list
             image_urls.append(public_url)
 
-        return {"image_urls": image_urls} 
+        return {"image_urls": image_urls}

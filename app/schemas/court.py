@@ -1,3 +1,4 @@
+from typing import List, Optional
 from app.schemas.base import *
 
 
@@ -16,4 +17,4 @@ class CourtOut(CourtBase):
     updated_at: datetime
 
     class Config:
-        from_attributes = True 
+        from_attributes = True

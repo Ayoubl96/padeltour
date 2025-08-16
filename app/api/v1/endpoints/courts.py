@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, status, File, UploadFile
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 from app import schemas
 from app.core.security import get_current_user
@@ -15,17 +15,22 @@ router = APIRouter()
 
 @router.post("/upload_image/", status_code=status.HTTP_201_CREATED)
 async def upload_image(
+    folder: Optional[str] = None,
     files: List[UploadFile] = File(...),
     db: Session = Depends(get_db),
     current_company: Company = Depends(get_current_user)
 ):
     company_service = CompanyService(db)
     company = company_service.get_company_by_id(current_company.id)
-    
+
+    # if i not recive folder i put default courts
+    if folder == None:
+        folder = "common"
+
     # Use the supabase integration from the old code
     return await StorageService.upload_image_on_supabase(
-        login=company.login, 
-        folder="courts", 
+        login=company.login,
+        folder=folder,
         files=files
     )
 
@@ -38,7 +43,7 @@ def create_court(
 ):
     court_service = CourtService(db)
     images_as_str = [str(url) for url in court_data.images] if court_data.images else []
-    
+
     return court_service.create_court(
         name=court_data.name,
         images=images_as_str,
@@ -65,7 +70,7 @@ def update_court(
 ):
     court_service = CourtService(db)
     images_as_str = [str(url) for url in court_data.images] if court_data.images else []
-    
+
     return court_service.update_court(
         court_id=id,
         company_id=current_company.id,
@@ -91,4 +96,4 @@ def get_all_courts(
     current_company: Company = Depends(get_current_user)
 ):
     court_service = CourtService(db)
-    return court_service.get_all_courts(current_company.id) 
+    return court_service.get_all_courts(current_company.id)
